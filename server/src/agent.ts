@@ -3,12 +3,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   AuthStorage,
+  DefaultResourceLoader,
   ModelRegistry,
   SessionManager,
   createAgentSession,
   type AgentSession,
   type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
+import { KB_SYSTEM_PROMPT } from "./prompt.js";
+import { kbHooksFactory } from "./kbHooks.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
@@ -23,10 +26,11 @@ const THINKING_LEVEL = "off" as const;
 export interface AgentContext {
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
+  resourceLoader: DefaultResourceLoader;
 }
 
 /**
- * 构建 agent 共享上下文:auth + model registry(指向项目 .pi/agent/models.json)。
+ * 构建 agent 共享上下文:auth + model registry + resource loader(系统提示词 + kb 钩子)。
  * 对话 agent 与后台 ingest agent 共用同一份。
  */
 export async function buildAgentContext(): Promise<AgentContext> {
@@ -39,7 +43,16 @@ export async function buildAgentContext(): Promise<AgentContext> {
     authStorage.setRuntimeApiKey(PROVIDER, apiKey);
   }
 
-  return { authStorage, modelRegistry };
+  // 资源加载器:注入知识库系统提示词 + kb 钩子 extension
+  const resourceLoader = new DefaultResourceLoader({
+    cwd: PROJECT_ROOT,
+    agentDir: AGENT_DIR,
+    systemPromptOverride: () => KB_SYSTEM_PROMPT,
+    extensionFactories: [kbHooksFactory],
+  });
+  await resourceLoader.reload();
+
+  return { authStorage, modelRegistry, resourceLoader };
 }
 
 /** 查找配置好的模型,找不到则抛错。 */
@@ -73,6 +86,7 @@ export async function createChatSession(
     thinkingLevel: THINKING_LEVEL,
     authStorage: opts.ctx.authStorage,
     modelRegistry: opts.ctx.modelRegistry,
+    resourceLoader: opts.ctx.resourceLoader,
     sessionManager: SessionManager.inMemory(),
     tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
   });
