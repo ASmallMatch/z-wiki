@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 import {
   AuthStorage,
   DefaultResourceLoader,
@@ -12,9 +13,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { KB_SYSTEM_PROMPT } from "./prompt.js";
 import { kbHooksFactory } from "./kbHooks.js";
+import { kbRoot } from "./kbLayout.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
+const KB_ROOT = kbRoot(PROJECT_ROOT);
 const AGENT_DIR = path.join(PROJECT_ROOT, ".pi/agent");
 const MODELS_JSON = path.join(AGENT_DIR, "models.json");
 
@@ -37,6 +40,13 @@ export interface AgentContext {
  * 对话 agent 与后台 ingest agent 共用同一份。
  */
 export async function buildAgentContext(): Promise<AgentContext> {
+  // layer1 内容必须在 kb/(ADR-0002)。缺失则提示从样板起步,失败快。
+  if (!existsSync(KB_ROOT)) {
+    throw new Error(
+      `知识库目录不存在:${KB_ROOT}\n请先复制样板起步:cp -r kb_example kb`
+    );
+  }
+
   const authStorage = AuthStorage.create(path.join(AGENT_DIR, "auth.json"));
   const modelRegistry = ModelRegistry.create(authStorage, MODELS_JSON);
 
@@ -83,7 +93,7 @@ export async function createChatSession(
 ): Promise<AgentSession> {
   const model = resolveModel(opts.ctx);
   const { session } = await createAgentSession({
-    cwd: PROJECT_ROOT,
+    cwd: KB_ROOT,
     agentDir: AGENT_DIR,
     model,
     thinkingLevel: THINKING_LEVEL,
@@ -116,7 +126,7 @@ export async function createIngestSession(
 ): Promise<AgentSession> {
   const model = resolveModel(opts.ctx);
   const { session } = await createAgentSession({
-    cwd: PROJECT_ROOT,
+    cwd: KB_ROOT,
     agentDir: AGENT_DIR,
     model,
     thinkingLevel: THINKING_LEVEL,

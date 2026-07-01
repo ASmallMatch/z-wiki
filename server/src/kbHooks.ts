@@ -4,7 +4,9 @@
 //
 // 通过 DefaultResourceLoader({ extensionFactories }) 内联注入,无需独立 .pi/extensions 文件。
 import { execFileSync } from "node:child_process";
+import path from "node:path";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { SUBSEAM_DIRS, isRawPath } from "./kbLayout.js";
 
 // 命中以下任一关键词则视为用户主动要求外部知识,不注入引导
 const EXTERNAL_KW =
@@ -14,18 +16,26 @@ const KB_GUIDE =
   "⚠️ 知识库模式:用户未指定使用外部知识,请优先按照知识库工作流执行" +
   "(读 index.md → 定位 wiki/raw → 合成回答 → 判断回写 → 更新 log.md → 触发 build)。如需外部信息,先确认用户意图。";
 
-/** 检测 wiki/、raw/ 相对 cwd 是否有变更(git status)。返回变更摘要或 null。 */
+/** 检测 kb/ 下 sub-seam 是否有变更(git status)。cwd 是 KB_ROOT。返回变更摘要或 null。 */
 function detectKbChanges(cwd: string): string | null {
   try {
     const out = execFileSync(
       "git",
-      ["-C", cwd, "status", "--porcelain", "wiki/", "raw/", "output/"],
+      ["-C", cwd, "status", "--porcelain", ...SUBSEAM_DIRS.map((d) => `${d}/`)],
       { encoding: "utf-8", timeout: 5000 }
     ).trim();
     return out || null;
   } catch {
     return null;
   }
+}
+
+/** 写操作的目标路径落入 raw/ 则拦截(ADR-0002 决策 2)。cwd 是 KB_ROOT。 */
+function isWriteToRaw(filePath: string, cwd: string): boolean {
+  if (!filePath) return false;
+  const abs = path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath);
+  // projectRoot = cwd 的父级(kb/ 的上一级)
+  return isRawPath(abs, path.resolve(cwd, ".."));
 }
 
 /** 知识库钩子 extension factory。 */
@@ -54,6 +64,19 @@ export const kbHooksFactory: ExtensionFactory = (pi) => {
       } catch {
         /* 无 UI 模式忽略 */
       }
+    }
+  });
+
+  // tool_call 事件:拦 write/edit 对 raw/ 的写(raw/ 只读,ADR-0002 决策 2)
+  pi.on("tool_call", async (event, ctx) => {
+    if (event.toolName !== "write" && event.toolName !== "edit") return;
+    const filePath = (event.input as { file_path?: string }).file_path;
+    if (filePath && isWriteToRaw(filePath, ctx.cwd)) {
+      return {
+        block: true,
+        reason:
+          "raw/ 是只读源(raw/ is read-only Source)。原始来源不可修改;如需修订内容,请写到 wiki/ 或 output/。",
+      };
     }
   });
 };

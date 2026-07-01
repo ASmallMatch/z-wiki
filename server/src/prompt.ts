@@ -17,23 +17,22 @@ export const KB_SYSTEM_PROMPT = `# 知识库项目规范
    - 不值得回写:临时性问答、单条命令速查
 2. **Ingest 必须执行的流程:**
    - raw/ 内容 → 按 §1 编译规则处理 → 创建/更新 wiki → 更新 index.md → 更新 log.md → 触发 build
-3. **Build:** 知识库数据由 server 在 agent 回合结束后自动构建(将 output/ 与 wiki/ 中 view:true 的 .md 转为 view 数据)。你无需手动运行构建命令,但需确保 wiki/output 文件已写盘。
-4. **raw/ 只读**:禁止修改 raw/ 中的文件
+3. **Build:** 知识库数据由 server 在 agent 回合结束后自动构建(将 output/ 与 wiki/ 中 view:true 的 .md 经 HTTP 暴露给前端)。你无需手动运行构建命令,但需确保 wiki/output 文件已写盘。
+4. **raw/ 只读**:禁止修改 raw/ 中的文件(代码层强制:write/edit 到 raw/ 路径会被拦截)
 5. **每次操作后**:追加 log.md
 
 ---
 
 ## 架构
 
+你的工作目录(cwd)是知识库根(kb/)。所有路径相对此目录。知识库分四条 sub-seam:
+
 \`\`\`
-raw/          — 原始来源,只读。LLM 读取但永不修改
-wiki/         — LLM 生成的结构化知识,由 LLM 全权维护
-pending/      — 草稿与零散想法
-output/       — LLM 生成的报告与分析
-view/         — AI 生成的静态网站数据(仅展示 output/ 与 wiki/ 中 view:true 产物)
-raw/imported/ — 非 MD 文件的转换产物
-index.md      — 内容目录
-log.md        — 操作时间线日志
+raw/          — Source:原始来源,只读。LLM 读取但永不修改(代码层强制:write/edit 到 raw/ 会被拦截)
+wiki/         — Compiled:LLM 生成的结构化知识,由 LLM 全权维护
+output/       — Reports:LLM 生成的报告与分析(output/health-check/ 为健康检查子区)
+index.md      — Metadata:内容目录
+log.md        — Metadata:操作时间线日志
 \`\`\`
 
 ---
@@ -46,8 +45,8 @@ log.md        — 操作时间线日志
 - 面试题/知识点汇总,积累 ≥10 个离散知识点后可独立成篇
 
 ### 何时不创建 wiki 文章
-- 单条工具命令速查、临时草稿、待验证猜想 → 留在 raw/ 或 pending/
-- 已过时且确认不再有用的内容 → 直接删除或归档到 raw/_archive/
+- 单条工具命令速查、临时草稿、待验证猜想 → 留在 raw/
+- 已过时且确认不再有用的内容 → 直接删除
 - 纯链接集合(没有原创笔记)→ 不创建 wiki,只在导航中列链接
 
 ### 编译质量标准
@@ -100,7 +99,6 @@ log.md        — 操作时间线日志
 | wiki 文章 | \`NN-主题名.md\` | \`01-LLM基础.md\` |
 | raw 笔记 | 保持原始来源命名,空格用 \`-\` | \`02-Transformer基础.md\` |
 | output 产物 | \`YYYY-MM-DD-主题-类型.md\` | \`2026-04-21-RAG-评测报告.md\` |
-| pending 草稿 | \`主题.md\` 或 \`日期-主题.md\` | \`prompt-v2.md\` |
 
 ### 文章结构模板(wiki)
 
@@ -187,7 +185,7 @@ view: true  # 或 false
 - wiki/ 与 output/ 的新增/修改文件已正确写盘
 - frontmatter 的 \`view:\` 字段已设置
 
-构建过程:将 output/ 的 .md 和 wiki/ 中 \`view: true\` 的 .md 增量构建为 view 数据文件,供前端展示。
+构建过程:server 调 buildView 扫描 output/ 的 .md 和 wiki/ 中 \`view: true\` 的 .md,编译为内存数据经 HTTP 暴露给前端。
 
 ---
 
@@ -196,13 +194,11 @@ view: true  # 或 false
 ### 允许的操作
 - 根据 raw/ 新内容更新现有 wiki 文章
 - 在 \`00-知识库导航.md\` 中同步状态表和新增链接
-- 将 \`pending/\` 中的成熟草稿提升为 wiki 或 output
 - 将 output/ 中经过验证的内容反向写入 wiki
 
 ### 禁止的操作
-- 直接修改 raw/ 中的原始来源内容(只读)
+- 直接修改 raw/ 中的原始来源内容(只读,代码层强制拦截)
 - 删除已有 wiki 文章(可标记 \`status: archived\`,不可删除)
-- 未经确认就删除 pending/ 中的草稿
 - 在 wiki 中凭空编造无法验证的内容(wiki 内容应有 raw/ 来源、output/ 分析或 query 推导作为支撑)
 
 ---

@@ -24,8 +24,8 @@ const stems = (pages: PageMeta[]): Set<string> =>
 
 test("wiki: view:true published, view:false skipped", async () => {
   const root = await makeProject({
-    "wiki/01-foo.md": "---\nview: true\n---\n# Foo\n\n## Section\n\ntext\n",
-    "wiki/02-hidden.md": "---\nview: false\n---\n# Hidden\n\nbody\n",
+    "kb/wiki/01-foo.md": "---\nview: true\n---\n# Foo\n\n## Section\n\ntext\n",
+    "kb/wiki/02-hidden.md": "---\nview: false\n---\n# Hidden\n\nbody\n",
   });
   try {
     const { pages, fragments } = await buildView(root);
@@ -40,9 +40,9 @@ test("wiki: view:true published, view:false skipped", async () => {
 
 test("output: publish flag overrides line count; ≥30 lines default published", async () => {
   const root = await makeProject({
-    "output/short-published.md": "---\npublish: true\n---\n# Short\n\nshort\n",
-    "output/short-draft.md": "# Draft\n\nshort\n",
-    "output/long.md": "# Long\n\n" + longBody(35),
+    "kb/output/short-published.md": "---\npublish: true\n---\n# Short\n\nshort\n",
+    "kb/output/short-draft.md": "# Draft\n\nshort\n",
+    "kb/output/long.md": "# Long\n\n" + longBody(35),
   });
   try {
     const { pages } = await buildView(root);
@@ -56,8 +56,8 @@ test("output: publish flag overrides line count; ≥30 lines default published",
 
 test("output/health-check excluded", async () => {
   const root = await makeProject({
-    "output/health-check/report.md": "---\npublish: true\n---\n# HC\n\nx\n",
-    "output/real.md": "---\npublish: true\n---\n# Real\n\nx\n",
+    "kb/output/health-check/report.md": "---\npublish: true\n---\n# HC\n\nx\n",
+    "kb/output/real.md": "---\npublish: true\n---\n# Real\n\nx\n",
   });
   try {
     const { pages } = await buildView(root);
@@ -70,7 +70,7 @@ test("output/health-check excluded", async () => {
 
 test("fragment wraps prose, excludes frontmatter, renders wikilink + toc", async () => {
   const root = await makeProject({
-    "wiki/01-foo.md":
+    "kb/wiki/01-foo.md":
       "---\nview: true\n---\n# Foo\n\n## Section\n\nsee [[02-bar]] and [[raw/x]]\n",
   });
   try {

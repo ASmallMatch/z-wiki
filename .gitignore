@@ -3,13 +3,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 .pi/.cache/
-# 知识库内容(gitignored,由 agent 维护)
+# 知识库内容(gitignored,由 agent 维护;新人用 kb_example/ 起步)
 server/dist/
 .env
 .pi/agent/auth.json
 .pi/agent/sessions/
-/raw
-/raw
-/wiki
-/log.md
-/index.md
+/kb

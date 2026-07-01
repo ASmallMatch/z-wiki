@@ -16,6 +16,7 @@ import {
 } from "./agentHost.js";
 import { buildView, type PageMeta } from "./buildView.js";
 import { hasIndexChanged } from "./hasIndexChanged.js";
+import { rawDir } from "./kbLayout.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
@@ -243,12 +244,11 @@ export async function createInteraction(agentCtx: AgentContext): Promise<Interac
 
     // 安全的文件名:保留原命名,去掉路径与危险字符
     const safeName = path.basename(file.filename).replace(/[^\w.一-龥-]/g, "_");
-    const rawDir = path.join(PROJECT_ROOT, "raw");
-    const rawPath = path.join(rawDir, safeName);
+    const rawPath = path.join(rawDir(PROJECT_ROOT), safeName);
 
-    // 归档到 raw/(写锁)
+    // 归档到 raw/(写锁;raw/ 对 agent 只读,但上传端点是合法写入方)
     await withFileLock(rawPath, async () => {
-      await fs.mkdir(rawDir, { recursive: true });
+      await fs.mkdir(rawDir(PROJECT_ROOT), { recursive: true });
       const buf = await file.toBuffer();
       await fs.writeFile(rawPath, buf, "utf-8");
     });

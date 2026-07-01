@@ -8,7 +8,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VAULT = path.resolve(__dirname, "..");
+// layer1 内容集中在 kb/(ADR-0002),健康检查只扫知识库
+const VAULT = path.resolve(__dirname, "..", "kb");
 
 const SKIP_DIRS = new Set([".git", ".obsidian", ".claude", ".firecrawl", ".playwright-mcp", "__pycache__", "node_modules", "dist", ".pi"]);
 const NON_MD_EXT = new Set([".srt", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".csv", ".json", ".svg", ".avif"]);
