@@ -90,7 +90,11 @@ export async function createChatSession(
     authStorage: opts.ctx.authStorage,
     modelRegistry: opts.ctx.modelRegistry,
     resourceLoader: opts.ctx.resourceLoader,
-    sessionManager: SessionManager.inMemory(),
+    // 落盘到 .pi/agent/sessions/chat/——每次连接新建会话文件,不续上下文,历史留档
+    sessionManager: SessionManager.create(
+      PROJECT_ROOT,
+      path.join(AGENT_DIR, "sessions", "chat")
+    ),
     tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
   });
   session.subscribe(opts.onEvent);

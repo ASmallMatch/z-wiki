@@ -186,6 +186,10 @@ app.get("/ws", { websocket: true }, async (socket, req) => {
     if (buf.timer) clearTimeout(buf.timer);
     buf.timer = null;
     buf.text = "";
+
+    // 释放会话,移除监听。落盘文件由 pi 的 lazy-flush 策略管理:
+    // 仅在出现 assistant 消息时才真正写盘,空会话不会产生文件,无需清理。
+    session.dispose();
   });
 });
 
