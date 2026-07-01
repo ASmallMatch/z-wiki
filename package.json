@@ -13,7 +13,7 @@
     "dev:web": "npm run dev -w web",
     "build": "npm run build -w web && npm run build -w server",
     "health": "tsx scripts/healthCheck.ts",
-    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.app.json --noEmit"
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.app.json --noEmit && tsc -p scripts/tsconfig.json --noEmit"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
