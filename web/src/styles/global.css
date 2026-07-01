@@ -1788,3 +1788,16 @@ body.home-no-scroll {
   font-size: 14px;
 }
 .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 上传按钮 */
+.chat-upload {
+  padding: 0 16px;
+  border: 1px solid var(--border, #e2e2e2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text, #333);
+  cursor: pointer;
+  font-size: 14px;
+}
+.chat-upload:hover:not(:disabled) { border-color: var(--accent, #4a90d9); color: var(--accent, #4a90d9); }
+.chat-upload:disabled { opacity: 0.5; cursor: not-allowed; }

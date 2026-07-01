@@ -11,3 +11,4 @@ web/public/pages.json
 server/dist/
 .env
 .pi/agent/auth.json
+.pi/agent/sessions/

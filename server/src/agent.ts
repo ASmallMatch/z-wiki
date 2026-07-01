@@ -93,3 +93,56 @@ export async function createChatSession(
   session.subscribe(opts.onEvent);
   return session;
 }
+
+export interface CreateIngestSessionOptions {
+  ctx: AgentContext;
+  onEvent: (event: AgentSessionEvent) => void;
+}
+
+/**
+ * 创建后台 ingest agent 会话(每次上传新建,持久化到独立 jsonl 便于追溯)。
+ * 共享对话 agent 的 loader/modelRegistry/auth,但会话独立。
+ * 上传 .md → 归档 raw → session.prompt(Ingest 指令) → agent_end 推结果。
+ */
+export async function createIngestSession(
+  opts: CreateIngestSessionOptions
+): Promise<AgentSession> {
+  const model = resolveModel(opts.ctx);
+  const { session } = await createAgentSession({
+    cwd: PROJECT_ROOT,
+    agentDir: AGENT_DIR,
+    model,
+    thinkingLevel: THINKING_LEVEL,
+    authStorage: opts.ctx.authStorage,
+    modelRegistry: opts.ctx.modelRegistry,
+    resourceLoader: opts.ctx.resourceLoader,
+    // 持久化到 .pi/sessions/,文件名带时间戳避免覆盖
+    sessionManager: SessionManager.create(path.join(AGENT_DIR, "sessions")),
+    tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+  });
+  session.subscribe(opts.onEvent);
+  return session;
+}
+
+// ── 文件写锁:避免对话 agent 与后台 ingest agent 同时写同一文件 ──
+const writeLocks = new Map<string, Promise<unknown>>();
+
+/** 对给定文件路径串行执行 async 任务(按文件排队)。 */
+export async function withFileLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
+  const prev = writeLocks.get(filePath) ?? Promise.resolve();
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  writeLocks.set(filePath, prev.then(() => next));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+    // 清理:若当前锁已是队尾,移除避免 Map 无限增长
+    if (writeLocks.get(filePath) === next) {
+      writeLocks.delete(filePath);
+    }
+  }
+}

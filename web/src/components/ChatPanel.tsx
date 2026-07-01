@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react'
 import { useChat, type ChatMessage } from '../hooks/useChat'
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
@@ -19,9 +19,16 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 }
 
 export default function ChatPanel() {
-  const { messages, streaming, connected, send } = useChat()
+  const { messages, streaming, connected, send, upload } = useChat()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    if (f) void upload(f)
+    e.target.value = ''
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -62,6 +69,21 @@ export default function ChatPanel() {
           rows={2}
           disabled={!connected || streaming}
         />
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".md"
+          onChange={handleFile}
+          style={{ display: 'none' }}
+        />
+        <button
+          className="chat-upload"
+          onClick={() => fileRef.current?.click()}
+          disabled={!connected}
+          title="上传 .md 到 raw/,自动编译"
+        >
+          上传
+        </button>
         <button
           className="chat-send"
           onClick={submit}

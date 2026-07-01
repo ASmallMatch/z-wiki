@@ -9,12 +9,13 @@ export interface ChatMessage {
 }
 
 interface ServerMsg {
-  type: 'text_delta' | 'tool_start' | 'tool_end' | 'done' | 'error' | 'system' | 'kb_updated'
+  type: 'text_delta' | 'tool_start' | 'tool_end' | 'done' | 'error' | 'system' | 'kb_updated' | 'ingest_done' | 'ingest_error'
   text?: string
   tool?: string
   error?: boolean
   changed?: number
   total?: number
+  raw?: string
 }
 
 let counter = 0
@@ -69,6 +70,18 @@ export function useChat() {
           // 知识库已重建,通知 useData 重拉 pages.json
           window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
           break
+        case 'ingest_done':
+          setMessages(prev => [
+            ...prev,
+            { id: nextId(), role: 'system', text: `已处理上传文件 ${msg.raw},知识库已更新` },
+          ])
+          break
+        case 'ingest_error':
+          setMessages(prev => [
+            ...prev,
+            { id: nextId(), role: 'system', text: `处理 ${msg.raw} 失败:${msg.text}`, error: true },
+          ])
+          break
         case 'error':
           setMessages(prev => [
             ...prev,
@@ -107,5 +120,35 @@ export function useChat() {
     [streaming]
   )
 
-  return { messages, streaming, connected, send }
+  const upload = useCallback(async (file: File) => {
+    if (!file) return
+    setMessages(prev => [
+      ...prev,
+      { id: nextId(), role: 'system', text: `上传 ${file.name} 中…` },
+    ])
+    const form = new FormData()
+    form.append('file', file)
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessages(prev => [
+          ...prev,
+          { id: nextId(), role: 'system', text: `上传失败:${data.error ?? res.status}`, error: true },
+        ])
+      } else {
+        setMessages(prev => [
+          ...prev,
+          { id: nextId(), role: 'system', text: `${file.name} 已上传,后台编译中…` },
+        ])
+      }
+    } catch (err) {
+      setMessages(prev => [
+        ...prev,
+        { id: nextId(), role: 'system', text: `上传出错:${err instanceof Error ? err.message : String(err)}`, error: true },
+      ])
+    }
+  }, [])
+
+  return { messages, streaming, connected, send, upload }
 }
