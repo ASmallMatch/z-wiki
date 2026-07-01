@@ -38,7 +38,9 @@ export function useChat() {
     ws.onopen = () => setConnected(true)
     ws.onclose = () => {
       setConnected(false)
-      wsRef.current = null
+      // 仅当仍是当前连接时才清空,避免 StrictMode 双挂载下
+      // 旧 ws 的异步 onclose 覆盖新 ws 的引用
+      if (wsRef.current === ws) wsRef.current = null
     }
     ws.onerror = () => setConnected(false)
     ws.onmessage = (ev) => {
