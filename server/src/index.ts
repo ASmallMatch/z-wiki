@@ -1,7 +1,13 @@
 import Fastify from "fastify";
 import fastifyWebsocket from "@fastify/websocket";
 import type { WebSocket } from "@fastify/websocket";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { buildAgentContext, createChatSession, type AgentContext } from "./agent.js";
+import { buildView } from "./buildView.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, "../..");
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? "127.0.0.1";
@@ -47,6 +53,16 @@ function relayEvent(socket: WebSocket, event: unknown): void {
       break;
     case "agent_end":
       socket.send(JSON.stringify({ type: "done" }));
+      // 闭环刷新:agent 写完 wiki/output 后自动 build,推"知识库已更新"
+      buildView(PROJECT_ROOT)
+        .then((r) => {
+          if (r.changed > 0) {
+            socket.send(
+              JSON.stringify({ type: "kb_updated", changed: r.changed, total: r.total })
+            );
+          }
+        })
+        .catch((err) => app.log.error({ err }, "buildView failed"));
       break;
     default:
       break;
@@ -93,6 +109,9 @@ const start = async () => {
   try {
     agentCtx = await buildAgentContext();
     app.log.info("agent context ready");
+    // 启动时构建一次知识库数据,供前端加载
+    const r = await buildView(PROJECT_ROOT);
+    app.log.info({ total: r.total, changed: r.changed }, "initial buildView done");
     await app.listen({ port: PORT, host: HOST });
     app.log.info(`z-wiki server on http://${HOST}:${PORT}`);
   } catch (err) {

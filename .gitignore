@@ -3,9 +3,11 @@ node_modules/
 dist/
 *.tsbuildinfo
 .pi/.cache/
-# 知识库生成产物(view 数据由 server 生成)
+# 知识库生成产物(由 server buildView 生成)
 view/public/pages/
 view/public/pages.json
+web/public/pages/
+web/public/pages.json
 server/dist/
 .env
 .pi/agent/auth.json

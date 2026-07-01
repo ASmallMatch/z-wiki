@@ -9,10 +9,12 @@ export interface ChatMessage {
 }
 
 interface ServerMsg {
-  type: 'text_delta' | 'tool_start' | 'tool_end' | 'done' | 'error' | 'system'
+  type: 'text_delta' | 'tool_start' | 'tool_end' | 'done' | 'error' | 'system' | 'kb_updated'
   text?: string
   tool?: string
   error?: boolean
+  changed?: number
+  total?: number
 }
 
 let counter = 0
@@ -62,6 +64,10 @@ export function useChat() {
         case 'done':
           streamingIdRef.current = null
           setStreaming(false)
+          break
+        case 'kb_updated':
+          // 知识库已重建,通知 useData 重拉 pages.json
+          window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
           break
         case 'error':
           setMessages(prev => [

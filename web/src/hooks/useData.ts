@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export interface TocItem {
   level: 'h2' | 'h3'
@@ -19,7 +19,7 @@ export function usePages() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch('/pages.json')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -28,6 +28,7 @@ export function usePages() {
       .then(data => {
         setPages(data as PageMeta[])
         setLoading(false)
+        setError(null)
       })
       .catch(err => {
         setError(err.message)
@@ -35,7 +36,15 @@ export function usePages() {
       })
   }, [])
 
-  return { pages, loading, error }
+  useEffect(() => {
+    load()
+    // agent 写完 wiki 后(server 推 kb_updated)自动重拉
+    const handler = () => load()
+    window.addEventListener('kb-updated', handler)
+    return () => window.removeEventListener('kb-updated', handler)
+  }, [load])
+
+  return { pages, loading, error, reload: load }
 }
 
 export function usePageContent(stem: string | undefined) {
