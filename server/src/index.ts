@@ -72,7 +72,7 @@ function flushDelta(socket: WebSocket): void {
   const text = buf.text;
   buf.text = "";
   socket.send(JSON.stringify({ type: "text_delta", text }));
-  app.log.debug({ chars: text.length }, "text flushed");
+  app.log.debug({ chars: text.length, text }, "text flushed");
 }
 
 /** 将 pi 的 AgentSessionEvent 转成前端可消费的简化消息,推给 WS。 */
@@ -85,18 +85,7 @@ function relayEvent(socket: WebSocket, event: unknown): void {
     args?: unknown;
     isError?: boolean;
   };
-  // text_delta 逐条太碎,不打日志;攒批 flush 时另打一条汇总
-  if (!(e.type === "message_update" && e.assistantMessageEvent?.type === "text_delta")) {
-    app.log.debug(
-      {
-        event: e.type,
-        ae: e.assistantMessageEvent?.type,
-        tool: e.toolName,
-        args: e.args,
-      },
-      "pi event"
-    );
-  }
+  // text_delta 逐条太碎,攒批 flush 时由 flushDelta 打汇总日志
 
   switch (e.type) {
     case "message_update": {
