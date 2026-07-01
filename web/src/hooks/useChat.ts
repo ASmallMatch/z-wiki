@@ -133,7 +133,7 @@ export function useChat() {
           setStreaming(false)
           break
         case 'kb_updated':
-          // 知识库已重建,通知 useData 重拉 pages.json
+          // 知识库已重建,通知 useData 重拉 pages
           window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
           break
         case 'ingest_done':

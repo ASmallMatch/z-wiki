@@ -20,7 +20,7 @@ export function usePages() {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(() => {
-    fetch('/pages.json')
+    fetch('/api/pages')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -57,7 +57,7 @@ export function usePageContent(stem: string | undefined) {
       return
     }
     setLoading(true)
-    fetch(`/pages/${stem}.html`)
+    fetch(`/api/pages/${stem}`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.text()

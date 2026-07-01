@@ -32,5 +32,5 @@ stop: ## 停止 server 与 web 进程
 	@lsof -ti :$(WEB_PORT) | xargs kill 2>/dev/null && echo "已停止 web :$(WEB_PORT)" || echo "web :$(WEB_PORT) 无进程"
 
 clean: ## 清理构建产物与依赖
-	rm -rf node_modules server/dist web/dist web/public/pages web/public/pages.json
+	rm -rf node_modules server/dist web/dist
 	@echo "已清理"

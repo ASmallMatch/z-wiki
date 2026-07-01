@@ -1,8 +1,9 @@
-// buildView.ts — TS 版知识库构建(替代 share_wsl/scripts/build-view.py)
-// 将 wiki/(view:true)与 output/ 的 .md 增量构建为前端数据:
-//   web/public/pages.json       — PageMeta[] 索引
-//   web/public/pages/<stem>.html — 内容片段(<article class="prose">...)
-// 纯标库 + 零依赖,server import 调用,agent_end 自动触发。
+// buildView.ts — 知识库 → 可视数据 的纯函数编译器。
+// 扫描 wiki/(view:true)与 output/ 的 .md,编译为内存结构:
+//   pages     — PageMeta[] 索引(供前端列表/导航)
+//   fragments — Map<stem, html> 文章片段(<article class="prose">...)
+// 纯函数:只读文件系统,不写盘。由 Interaction 缓存结果并经 HTTP 暴露。
+// md→html 1:1 平移自原 Python 版。
 import fs from "node:fs/promises";
 import path from "node:path";
 import { existsSync } from "node:fs";
@@ -22,9 +23,8 @@ export interface PageMeta {
 }
 
 export interface BuildResult {
-  total: number;
-  changed: number;
   pages: PageMeta[];
+  fragments: Map<string, string>;
 }
 
 const DEFAULT_MIN_LINES = 30;
@@ -301,11 +301,7 @@ async function scanSources(projectRoot: string): Promise<Source[]> {
 }
 
 // ── 主构建 ───────────────────────────────────────────────────
-export async function buildView(projectRoot: string, opts: { full?: boolean } = {}): Promise<BuildResult> {
-  const publicDir = path.join(projectRoot, "web", "public");
-  const pagesDir = path.join(publicDir, "pages");
-  await fs.mkdir(pagesDir, { recursive: true });
-
+export async function buildView(projectRoot: string): Promise<BuildResult> {
   const sources = await scanSources(projectRoot);
   const minLines = DEFAULT_MIN_LINES;
   const publishable: Source[] = [];
@@ -315,26 +311,12 @@ export async function buildView(projectRoot: string, opts: { full?: boolean } = 
   }
 
   const pages: PageMeta[] = [];
-  let changed = 0;
+  const fragments = new Map<string, string>();
   for (const src of publishable) {
     const mdText = await fs.readFile(src.abs, "utf-8");
     const stat = await fs.stat(src.abs);
     const title = extractTitle(mdText) ?? src.stem;
-    const fragment = `<article class="prose">\n${mdToHtml(mdText)}\n</article>`;
-    const htmlPath = path.join(pagesDir, `${src.stem}.html`);
-
-    let needWrite = opts.full ?? false;
-    if (!needWrite) {
-      if (!existsSync(htmlPath)) needWrite = true;
-      else {
-        const dst = await fs.stat(htmlPath);
-        if (stat.mtimeMs > dst.mtimeMs) needWrite = true;
-      }
-    }
-    if (needWrite) {
-      await fs.writeFile(htmlPath, fragment, "utf-8");
-      changed++;
-    }
+    fragments.set(src.stem, `<article class="prose">\n${mdToHtml(mdText)}\n</article>`);
     pages.push({
       stem: src.stem,
       title,
@@ -345,11 +327,5 @@ export async function buildView(projectRoot: string, opts: { full?: boolean } = 
     });
   }
 
-  await fs.writeFile(
-    path.join(publicDir, "pages.json"),
-    JSON.stringify(pages, null, 2),
-    "utf-8"
-  );
-
-  return { total: pages.length, changed, pages };
+  return { pages, fragments };
 }
