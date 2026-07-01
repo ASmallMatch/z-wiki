@@ -9,9 +9,11 @@ const SECTION_LABELS: Record<string, string> = {
 
 interface HeaderProps {
   pages: PageMeta[]
+  chatOpen: boolean
+  onToggleChat: () => void
 }
 
-export default function Header({ pages }: HeaderProps) {
+export default function Header({ pages, chatOpen, onToggleChat }: HeaderProps) {
   const location = useLocation()
   const isArticle = location.pathname.startsWith('/pages/')
   const currentStem = isArticle
@@ -61,6 +63,18 @@ export default function Header({ pages }: HeaderProps) {
           <span className="header-logo-mono" aria-hidden="true">RPA</span>
           <span>Wiki</span>
         </Link>
+
+        {!isArticle && (
+          <button
+            type="button"
+            className={`header-chat-btn ${chatOpen ? 'active' : ''}`}
+            onClick={onToggleChat}
+            aria-label="打开对话"
+            aria-expanded={chatOpen}
+          >
+            对话
+          </button>
+        )}
 
         {isArticle && currentPage && (
           <nav className="header-breadcrumb">
