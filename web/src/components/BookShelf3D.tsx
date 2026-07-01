@@ -34,6 +34,10 @@ const FAN_TILT = 0.03                       // 远离时绕 y 微旋系数：左
 const SPREAD_MAX = 0.2                      // 间距倍率上浮（effectiveStep = ANGLE_STEP*(1+SPREAD_MAX*spreadP)，最大 1.2x）
 const LIFT_FROM_Y = -4                      // 入场起点 y
 const HOVER_LOST_THRESHOLD = 5
+const TAU = Math.PI * 2                       // 单本书回弹对齐用：吸到 2π 整数倍视觉等同正中
+const SOLO_DRAG_CLAMP = 0.025                   // 单本书拖拽 rot 1:1 跟手范围（弧度）：在此范围内跟手，超出走橡皮筋渐近线
+const SOLO_PIXEL_TO_ANGLE = 0.004               // 单本书像素→弧度（比滑轨 0.012 慢 3 倍）：拖动轻微、松手回弹
+const SOLO_MAX_ROT = 0.05                       // 单本书橡皮筋渐近上限（弧度，约 2.8°）：轻微挪动，取 min(soloMaxRot) 防窄屏出屏
 // ---------- 拖拽惯性驱动 ----------
 const PIXEL_TO_ANGLE = 0.012                // 像素→弧度：拖拽 1:1 抓取灵敏度（现场调）
 const DRAG_FRICTION = 0.90                  // 惯性指数摩擦（/帧，dt*60 缩放）
@@ -600,9 +604,16 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     // 吸附 rot 到最近槽位（中心对齐到一本，固定舞台严丝合缝演出）
     function snapToNearest() {
       if (snapping) return
-      const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
-      const targetSlot = Math.round(-rot.val / effStep)
-      const target = -targetSlot * effStep
+      // 单本书（slots<=1）：无滑轨可吸，对齐到最近的 2π 整数倍——视觉等同正中且位移最小，
+      // 拖多圈也不会 tween 转一整圈回来。多本书走原槽位对齐
+      let target: number
+      if (slots <= 1) {
+        target = Math.round(rot.val / TAU) * TAU
+      } else {
+        const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
+        const targetSlot = Math.round(-rot.val / effStep)
+        target = -targetSlot * effStep
+      }
       snapping = true
       gsap.to(rot, {
         val: target,
@@ -685,8 +696,13 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     function enterOrbit() {
       if (snapping) { gsap.killTweensOf(rot); snapping = false }
       vel = 0
-      const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
-      rot.val = -Math.round(-rot.val / effStep) * effStep
+      // 单本书同样对齐到 2π 整数倍，保证轨道球态书在正中
+      if (slots <= 1) {
+        rot.val = Math.round(rot.val / TAU) * TAU
+      } else {
+        const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
+        rot.val = -Math.round(-rot.val / effStep) * effStep
+      }
       orbiting = true
     }
 
@@ -716,7 +732,25 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
         lastMoveX = e.clientX
       }
       // 1:1 抓取：按下点贴住指针，鼠标横向位移直接映射 rot
-      rot.val = dragStartRot + (e.clientX - dragStartX) * PIXEL_TO_ANGLE
+      // 单本书用更慢的 SOLO_PIXEL_TO_ANGLE，拖动轻微、松手回弹（滑轨仍用 PIXEL_TO_ANGLE）
+      const p2a = slots <= 1 ? SOLO_PIXEL_TO_ANGLE : PIXEL_TO_ANGLE
+      const raw = dragStartRot + (e.clientX - dragStartX) * p2a
+      // 单本书（抽出态）：橡皮筋渐近线——±SOLO_DRAG_CLAMP 内 1:1 跟手，
+      // 超出部分渐近趋向 ±SOLO_MAX_ROT（轻微挪动上限，与 soloMaxRot 取小防窄屏出屏），
+      // 越拖越阻尼，永不到顶不撞墙，松手弹回正中
+      if (slots <= 1) {
+        const limit = Math.min(soloMaxRot, SOLO_MAX_ROT)
+        const span = limit - SOLO_DRAG_CLAMP
+        if (raw > SOLO_DRAG_CLAMP) {
+          rot.val = SOLO_DRAG_CLAMP + span * (1 - Math.exp(-(raw - SOLO_DRAG_CLAMP) / span))
+        } else if (raw < -SOLO_DRAG_CLAMP) {
+          rot.val = -SOLO_DRAG_CLAMP - span * (1 - Math.exp((raw + SOLO_DRAG_CLAMP) / span))
+        } else {
+          rot.val = raw
+        }
+      } else {
+        rot.val = raw
+      }
       const now = performance.now()
       velSamples.push({ t: now, dx: e.clientX - lastMoveX })
       while (velSamples.length && now - velSamples[0].t > 100) velSamples.shift()
@@ -786,7 +820,8 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       velSamples.length = 0
       endDrag(e.pointerId, false)
       // 速度过小直接 snap，否则进入惯性衰减（由渲染循环处理）
-      if (Math.abs(vel) < VEL_SNAP_THRESHOLD) { vel = 0; snapToNearest() }
+      // 单本书无滑轨可滑，松手即弹回正中（跳过惯性，避免橡皮筋超出后惯性撞墙）
+      if (Math.abs(vel) < VEL_SNAP_THRESHOLD || slots <= 1) { vel = 0; snapToNearest() }
     }
 
     // pointercancel：触屏 pan-y 下手势被判为竖向滚动时浏览器发 cancel 而非 up，
@@ -851,12 +886,23 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     io.observe(container)
 
     // ---------- 响应式 ----------
+    // 单本书拖拽不出屏的 rot 上限：抽出本 z=RADIUS+FOCAL_Z，按相机视口算可见半宽，
+    // 减去书半宽得安全 x，再反推 rot。窄屏自动收紧，避免 sin(rot)*RADIUS 把书甩出屏
+    function computeSoloMaxRot(): number {
+      const bookZ = RADIUS + FOCAL_Z             // select=1 时抽出本 z
+      const dist = camera.position.z - bookZ
+      const halfW = Math.tan((camera.fov * Math.PI / 180) / 2) * dist * camera.aspect
+      const safeX = Math.max(0.5, halfW - (BOOK_W * CURRENT_SCALE) / 2)
+      return Math.asin(Math.min(0.9, safeX / RADIUS))
+    }
+    let soloMaxRot = computeSoloMaxRot()
     function onResize() {
       const w = container!.clientWidth
       const h = container!.clientHeight
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
+      soloMaxRot = computeSoloMaxRot()
     }
 
     const ro = new ResizeObserver(onResize)
@@ -937,7 +983,8 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       }
 
       // 当前正前方槽位（固定舞台：滑到中心的书做抽出动作）
-      currentSlot = Math.round(-rot.val / effStep)
+      // 单本书无滑轨，钳为 0 让唯一书恒为当前本（select/抽出态正常），拖拽中 a=rot.val 自然随拖转动
+      currentSlot = slots <= 1 ? 0 : Math.round(-rot.val / effStep)
 
       // 换皮虚拟化
       if (virtual) reflow()
