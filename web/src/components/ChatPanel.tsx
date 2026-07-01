@@ -1,19 +1,57 @@
 import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react'
-import { useChat, type ChatMessage } from '../hooks/useChat'
+import { useChat, type ChatMessage, type Segment } from '../hooks/useChat'
+
+function ToolChip({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }) {
+  const label = seg.status === 'running' ? '运行中' : seg.status === 'error' ? '失败' : '完成'
+  return (
+    <span className={`chat-tool chat-tool-${seg.status}`}>
+      <span className="chat-tool-dot" />
+      <span className="chat-tool-name">{seg.tool}</span>
+      <span className="chat-tool-state">{label}</span>
+    </span>
+  )
+}
+
+/** 渲染纯文本:保留换行,转义后以 pre-wrap 呈现,与 prose 协调。 */
+function TextBlock({ text }: { text: string }) {
+  return <div className="chat-text">{text}</div>
+}
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   if (msg.role === 'system') {
     return (
-      <div className={`chat-msg chat-msg-system ${msg.error ? 'chat-msg-error' : ''}`}>
-        {msg.error ? '⚠️ ' : '🔧 '}
-        {msg.text}
+      <div className={`chat-row chat-row-system ${msg.error ? 'chat-row-error' : ''}`}>
+        <span className="chat-mark">{msg.error ? '⚠' : '◆'}</span>
+        <span className="chat-system-text">{msg.text}</span>
       </div>
     )
   }
+
+  const isUser = msg.role === 'user'
+  const roleLabel = isUser ? '我' : '助手'
+  const segments = msg.segments ?? []
+
+  // 助手回合:若尚无任何片段,显示占位
+  const empty = !isUser && segments.length === 0
+
   return (
-    <div className={`chat-msg chat-msg-${msg.role}`}>
-      <div className="chat-role">{msg.role === 'user' ? '我' : '助手'}</div>
-      <div className="chat-text">{msg.text || (msg.role === 'assistant' ? '…' : '')}</div>
+    <div className={`chat-row chat-row-${msg.role}`}>
+      <div className="chat-role">{roleLabel}</div>
+      <div className="chat-content">
+        {isUser ? (
+          <TextBlock text={msg.text ?? ''} />
+        ) : empty ? (
+          <div className="chat-pending">…</div>
+        ) : (
+          segments.map(seg =>
+            seg.kind === 'text' ? (
+              <TextBlock key={seg.id} text={seg.text} />
+            ) : (
+              <ToolChip key={seg.id} seg={seg} />
+            )
+          )
+        )}
+      </div>
     </div>
   )
 }

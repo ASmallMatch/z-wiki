@@ -1792,49 +1792,125 @@ body.home-no-scroll {
   margin-top: var(--sp-10);
   font-size: var(--fs-sm);
 }
-.chat-msg {
+/* ── 档案式时间线:所有回合左对齐,role 标签置顶,内容在下 ── */
+.chat-row {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  max-width: 85%;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
+  border-left: 2px solid var(--border-light);
+  position: relative;
 }
-.chat-msg-user { align-self: flex-end; }
-.chat-msg-assistant { align-self: flex-start; }
-.chat-msg-system {
-  align-self: center;
-  font-family: var(--mono);
-  font-size: var(--fs-xs);
-  color: var(--text-faint);
+.chat-row-user {
+  border-left-color: var(--accent-border);
 }
-.chat-msg-error { color: #d98a7a; }
+.chat-row-assistant {
+  border-left-color: var(--accent);
+}
+.chat-row-system {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-4);
+  border-left-color: var(--rule);
+}
+.chat-row-error .chat-mark { color: #d98a7a; }
+
 .chat-role {
   font-family: var(--mono);
   font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-faint);
-  padding: 0 var(--sp-1);
 }
-.chat-msg-user .chat-role { text-align: right; }
+.chat-row-user .chat-role { color: var(--accent-bright); }
+
+.chat-mark {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.chat-system-text {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+}
+.chat-row-error .chat-system-text { color: #d98a7a; }
+
+.chat-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+/* 文本块:与 .prose 协调的克制排版,保留换行 */
 .chat-text {
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-lg);
+  font-size: var(--fs-sm);
+  line-height: var(--lh);
+  color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: var(--lh);
 }
-.chat-msg-user .chat-text {
-  background: var(--accent);
-  color: var(--surface);
-  border: 1px solid var(--accent-border);
+.chat-row-user .chat-text {
+  color: var(--text-bright);
 }
-.chat-msg-assistant .chat-text {
-  background: var(--surface-hover);
-  color: var(--text);
+
+.chat-pending {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  letter-spacing: 0.2em;
+  animation: chat-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; }
+}
+
+/* 工具调用胶囊:mono 内联,带状态点 */
+.chat-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--border);
-  box-shadow: inset 0 0 0 1px var(--border-inner);
+  border-radius: var(--r-md);
+  background: var(--surface-code);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1;
 }
-.chat-msg-system .chat-text { background: transparent; padding: 0; }
+.chat-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+.chat-tool-name {
+  color: var(--accent-bright);
+  letter-spacing: 0.04em;
+}
+.chat-tool-state {
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+}
+.chat-tool-running .chat-tool-dot {
+  background: var(--accent-bright);
+  box-shadow: 0 0 6px var(--accent-border);
+  animation: chat-pulse 1.1s ease-in-out infinite;
+}
+.chat-tool-running .chat-tool-state { color: var(--accent-bright); }
+.chat-tool-done { border-color: var(--accent-border); }
+.chat-tool-done .chat-tool-dot { background: var(--accent); }
+.chat-tool-error { border-color: rgba(217, 138, 122, 0.5); }
+.chat-tool-error .chat-tool-dot { background: #d98a7a; }
+.chat-tool-error .chat-tool-state { color: #d98a7a; }
 .chat-input-row {
   display: flex;
   align-items: center;
