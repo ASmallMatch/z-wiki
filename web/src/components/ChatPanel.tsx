@@ -18,7 +18,11 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   )
 }
 
-export default function ChatPanel() {
+interface ChatPanelProps {
+  onClose: () => void
+}
+
+export default function ChatPanel({ onClose }: ChatPanelProps) {
   const { messages, streaming, connected, send, upload } = useChat()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -49,8 +53,21 @@ export default function ChatPanel() {
 
   return (
     <div className="chat-panel">
-      <div className="chat-status">
-        {connected ? '● 已连接' : '○ 未连接'}
+      <div className="chat-drawer-header">
+        <span className="chat-status">
+          {connected ? '● 已连接' : '○ 未连接'}
+        </span>
+        <button
+          type="button"
+          className="chat-drawer-close"
+          onClick={onClose}
+          aria-label="关闭对话"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
       </div>
       <div className="chat-messages" ref={scrollRef}>
         {messages.length === 0 ? (
