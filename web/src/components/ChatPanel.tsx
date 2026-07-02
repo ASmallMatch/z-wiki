@@ -38,7 +38,7 @@ function TextBlock({ text }: { text: string }) {
   return <div className="chat-text">{text}</div>
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, typing }: { msg: ChatMessage; typing?: boolean }) {
   if (msg.role === 'system') {
     return (
       <div className={`chat-row chat-row-system ${msg.error ? 'chat-row-error' : ''}`}>
@@ -49,28 +49,39 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   }
 
   const isUser = msg.role === 'user'
-  const roleLabel = isUser ? '我' : '助手'
   const segments = msg.segments ?? []
 
-  // 助手回合:若尚无任何片段,显示占位
-  const empty = !isUser && segments.length === 0
-
   return (
-    <div className={`chat-row chat-row-${msg.role}`}>
-      <div className="chat-role">{roleLabel}</div>
-      <div className="chat-content">
+    <div className={`chat-row chat-row-${isUser ? 'user' : 'fairy'}`}>
+      {!isUser && <div className="chat-label">Fairy✨</div>}
+      <div className="chat-bubble">
         {isUser ? (
           <TextBlock text={msg.text ?? ''} />
-        ) : empty ? (
+        ) : segments.length === 0 && typing ? (
+          <span className="chat-typing">
+            <span className="chat-typing-dot" />
+            <span className="chat-typing-dot" />
+            <span className="chat-typing-dot" />
+          </span>
+        ) : segments.length === 0 ? (
           <div className="chat-pending">…</div>
         ) : (
-          segments.map(seg =>
-            seg.kind === 'text' ? (
-              <TextBlock key={seg.id} text={seg.text} />
-            ) : (
-              <ToolChip key={seg.id} seg={seg} />
-            )
-          )
+          <>
+            {segments.map(seg =>
+              seg.kind === 'text' ? (
+                <TextBlock key={seg.id} text={seg.text} />
+              ) : (
+                <ToolChip key={seg.id} seg={seg} />
+              )
+            )}
+            {typing && (
+              <span className="chat-typing">
+                <span className="chat-typing-dot" />
+                <span className="chat-typing-dot" />
+                <span className="chat-typing-dot" />
+              </span>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -132,7 +143,16 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         {messages.length === 0 ? (
           <div className="chat-empty">向知识库智能体提问,它会按工作流检索 wiki 并回答。</div>
         ) : (
-          messages.map(m => <MessageBubble key={m.id} msg={m} />)
+          (() => {
+            // 找出最后一个 Fairy✨消息,用于 typing indicator
+            let lastId: string | null = null
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (messages[i].role === 'assistant') { lastId = messages[i].id; break }
+            }
+            return messages.map(m => (
+              <MessageBubble key={m.id} msg={m} typing={streaming && m.id === lastId} />
+            ))
+          })()
         )}
       </div>
       <div className="chat-input-row">
