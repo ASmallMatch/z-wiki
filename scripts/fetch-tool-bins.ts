@@ -6,7 +6,7 @@
 //   默认下载当前平台;--all 下载全部六套(darwin/linux/win32 × arm64/x64),切片 06 打包用。
 // 二进制大,desktop/resources/bin/ 已 .gitignore,clone 后跑此脚本拉取。
 import { execSync } from 'node:child_process'
-import { createWriteStream, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createWriteStream, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -104,11 +104,21 @@ function extractArchive(archive: string, dest: string, plat: string): void {
   }
 }
 
-function findBinary(dir: string, name: string): string {
-  // archive 解压后二进制在子目录(如 ripgrep-14.1.1-aarch64-apple-darwin/rg),递归找。
-  const result = execSync(`find '${dir}' -type f -name '${name}'`, { encoding: 'utf-8' }).trim()
-  if (!result) throw new Error(`解压后未找到 ${name} in ${dir}`)
-  return result.split('\n')[0]
+function findBinary(root: string, name: string): string {
+  // archive 解压后二进制在子目录(如 ripgrep-14.1.1-aarch64-apple-darwin/rg)。
+  // 用 Node fs 递归查找,不依赖 shell find(win 无 find 命令)。
+  const stack = [root]
+  while (stack.length > 0) {
+    const dir = stack.pop()
+    if (dir === undefined) break
+    for (const entry of readdirSync(dir)) {
+      const full = path.join(dir, entry)
+      const stat = statSync(full)
+      if (stat.isFile() && entry === name) return full
+      if (stat.isDirectory()) stack.push(full)
+    }
+  }
+  throw new Error(`解压后未找到 ${name} in ${root}`)
 }
 
 async function fetchOne(plat: string, arch: string): Promise<void> {

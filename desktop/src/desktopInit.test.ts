@@ -1,7 +1,14 @@
 // desktopInit.test.ts — 端到端验证桌面首次启动初始化流程。
 // 造空 UserDataDir + 真实 bundle(kb_example + rg/fd)→ ensureFirstRun + ensureToolBins +
 // createServer → 验证首个 Vault 创建、rg/fd 铺放、server 起来、/api/pages 返回 kb 内容。
-// 用动态 import server 确保在 PI_CODING_AGENT_DIR 设好后才加载 pi(否则 TOOLS_DIR 用默认值)。
+//
+// 局限(问题 2):env 时序无法被此测试覆盖。下面设的 PI_CODING_AGENT_DIR 旨在让 pi 的
+// TOOLS_DIR(getBinDir)指向 UserDataDir/.pi/agent/bin,但 npm test 先跑 server/src/**/*.test.ts,
+// 其 static import 已触发 pi 加载,TOOLS_DIR 在模块加载时求值并固定为默认值(~/.pi/agent)。
+// 本测试后跑,设 env 对 TOOLS_DIR 已无效(动态 import 拿到缓存的 server 模块)。
+// 测试仍通过,因为 createServer 不触发 grep(不调 getToolPath),不依赖 TOOLS_DIR。
+// 故"env.ts 在 pi import 前执行"这个关键时序靠代码审查(env.ts 是 main.ts 第一个 import)
+// + 手动 electron 验证(server 起 + rg 铺放 + PI_OFFLINE 不下载)保证,本测试测不到。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
