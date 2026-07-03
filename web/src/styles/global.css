@@ -2237,3 +2237,257 @@ body.home-no-scroll {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+/* ── Settings page(设置页:API key + Vault 管理)────────────────── */
+
+.settings {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: var(--sp-10) var(--sp-4) var(--sp-16);
+}
+
+.settings-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.settings-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.settings-title {
+  font-family: var(--mono);
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  color: var(--text-bright);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.settings-back {
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  text-decoration: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--r-md);
+  transition: background 0.15s;
+}
+.settings-back:hover {
+  background: var(--accent-bg);
+}
+
+.settings-section {
+  padding: var(--sp-5);
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.settings-section-title {
+  font-family: var(--mono);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 var(--sp-3);
+  letter-spacing: 0.04em;
+}
+
+.settings-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin: var(--sp-1) 0 var(--sp-2);
+  line-height: var(--lh);
+}
+
+.settings-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin: 0 0 var(--sp-3);
+  font-family: var(--mono);
+}
+.settings-meta code {
+  color: var(--accent-soft);
+  background: var(--surface-code);
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-sm);
+}
+
+.settings-warning {
+  font-size: var(--fs-sm);
+  color: #d98a7a;
+  margin: 0 0 var(--sp-3);
+}
+
+.settings-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+
+.settings-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-code);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.settings-input::placeholder {
+  color: var(--text-faint);
+  font-family: var(--sans);
+}
+.settings-input:focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+.settings-btn {
+  padding: 0.5rem var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.settings-btn:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent-bright);
+}
+.settings-btn.primary {
+  border-color: var(--accent-border);
+  background: var(--accent);
+  color: var(--surface);
+}
+.settings-btn.primary:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--surface);
+}
+.settings-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.settings-error {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid #d98a7a;
+  border-radius: var(--r-md);
+  background: rgba(217, 138, 122, 0.08);
+  color: #e0a89a;
+  font-size: var(--fs-sm);
+}
+
+.settings-notice {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+  font-size: var(--fs-sm);
+}
+
+/* Vault 列表 */
+.vault-list {
+  list-style: none;
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.vault-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  transition: border-color 0.15s;
+}
+.vault-item.current {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.vault-info {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  flex: 1;
+}
+
+.vault-name {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.vault-path {
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-tag {
+  font-size: var(--fs-xs);
+  color: var(--accent);
+  font-family: var(--mono);
+  padding: 0.1em 0.5em;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+}
+
+.vault-empty {
+  padding: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  text-align: center;
+}
+
+.new-vault {
+  margin-top: var(--sp-2);
+}
+
+/* Header 设置按钮 */
+.header-settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    color 0.15s;
+  flex-shrink: 0;
+}
+.header-settings-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent-bright);
+}

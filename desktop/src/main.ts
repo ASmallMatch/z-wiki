@@ -34,6 +34,7 @@ async function bootstrap(): Promise<void> {
     kbRoot: paths.kbRoot,
     agentDir: paths.agentDir,
     webDistPath: paths.webDist,
+    kbExamplePath: paths.kbExamplePath,
   })
 
   // listen 随机端口(ADR-0003 D2):port:0 取空闲端口,避免冲突,端口注入 loadURL。

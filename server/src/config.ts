@@ -2,7 +2,7 @@
 // config.json 是桌面形态的唯一真相源(ADR-0003 D3.1):含 apiKey/provider/model、
 // 已知 Vault 列表 + 当前 Vault、全局偏好。pi 的 models.json 为其派生产物(启动生成),
 // auth.json 不落盘(apiKey 经 setRuntimeApiKey 运行时注入)。
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 // ── schema ────────────────────────────────────────────────────
@@ -102,4 +102,14 @@ export function writeModelsJson(agentDir: string, config: ConfigJson): string {
   const content = generateModelsJson(config)
   writeFileSync(modelsJsonPath, JSON.stringify(content, null, 2), 'utf-8')
   return modelsJsonPath
+}
+
+/**
+ * 原子写整份 config.json(tmp+rename,避免写半崩溃损坏真相源,参照 windowState.ts/firstRun.ts)。
+ * 调用方负责 read-modify-write 语义与并发串行化(交互层用 withFileLock 包裹)。
+ */
+export function writeConfig(configPath: string, config: ConfigJson): void {
+  const tmp = `${configPath}.tmp`
+  writeFileSync(tmp, JSON.stringify(config, null, 2), 'utf-8')
+  renameSync(tmp, configPath)
 }

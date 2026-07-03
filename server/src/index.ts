@@ -19,10 +19,13 @@ export type { AgentContextOptions } from './agentHost.js'
 /**
  * createServer 选项。webDistPath 可选:提供时 server 用 @fastify/static 同端口 serve
  * 前端构建产物(prod/桌面形态,ADR-0003 D2.1);不提供时保留 dev 占位(/ 走 vite proxy)。
+ * kbExamplePath 可选:提供时 POST /api/vault 可从样板复制新建 Vault;dev 形态指仓库根 kb_example。
  */
 export interface CreateServerOptions extends AgentContextOptions {
   /** web/dist 静态资源绝对路径;省略则不托管前端(dev 形态走 vite proxy)。 */
   webDistPath?: string
+  /** bundle 内 kb_example 绝对路径;省略则 POST /api/vault 返回 503。 */
+  kbExamplePath?: string
 }
 
 /**
@@ -31,7 +34,11 @@ export interface CreateServerOptions extends AgentContextOptions {
  */
 export async function createServer(opts: CreateServerOptions): Promise<Interaction> {
   const agentCtx = await buildAgentContext(opts)
-  const interaction = await createInteraction(agentCtx, opts.webDistPath)
+  const interaction = await createInteraction(agentCtx, {
+    kbRoot: opts.kbRoot,
+    webDistPath: opts.webDistPath,
+    kbExamplePath: opts.kbExamplePath,
+  })
   interaction.log.info('agent context ready')
   const total = await interaction.refreshView()
   interaction.log.info({ total }, 'initial buildView done')
@@ -44,6 +51,7 @@ async function start(): Promise<void> {
     const interaction = await createServer({
       kbRoot: kbRoot(PROJECT_ROOT),
       agentDir: path.join(PROJECT_ROOT, '.pi/agent'),
+      kbExamplePath: path.join(PROJECT_ROOT, 'kb_example'),
     })
 
     // graceful shutdown:tsx watch / concurrently 在 Ctrl+C 时给子进程发信号,

@@ -30,8 +30,10 @@ interface ServerMsg {
     | 'error'
     | 'system'
     | 'kb_updated'
+    | 'ingest_started'
     | 'ingest_done'
     | 'ingest_error'
+    | 'vault_changed'
   text?: string
   tool?: string
   args?: unknown
@@ -39,6 +41,7 @@ interface ServerMsg {
   changed?: number
   total?: number
   raw?: string
+  vault?: { path: string; name: string }
 }
 
 let counter = 0
@@ -56,9 +59,16 @@ export function useChat() {
   const wsRef = useRef<WebSocket | null>(null)
   // 当前正在流式累加的 assistant 回合 id
   const streamingIdRef = useRef<string | null>(null)
+  // 组件是否仍挂载(卸载后不重连,避免 StrictMode 双挂载/路由离开后残留连接)
+  const mountedRef = useRef(true)
+  // 切库重连标志:vault_changed 收到后置 true,onclose 据此区分切库重连(短延迟)与崩溃重连(退避)
+  const vaultSwitchingRef = useRef(false)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    // 已连接或连接中时不重复开(重连定时器与 StrictMode 双挂载都可能并发触发)
+    const state = wsRef.current?.readyState
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${proto}//${window.location.host}/ws`)
     wsRef.current = ws
@@ -66,9 +76,16 @@ export function useChat() {
     ws.onopen = () => setConnected(true)
     ws.onclose = () => {
       setConnected(false)
-      // 仅当仍是当前连接时才清空,避免 StrictMode 双挂载下
-      // 旧 ws 的异步 onclose 覆盖新 ws 的引用
-      if (wsRef.current === ws) wsRef.current = null
+      // 仅当仍是当前连接时处理:StrictMode 双挂载下旧 ws 的 onclose 不应触发重连
+      if (wsRef.current !== ws) return
+      wsRef.current = null
+      if (!mountedRef.current) return
+      const wasSwitch = vaultSwitchingRef.current
+      vaultSwitchingRef.current = false
+      // 切库重连:server 主动关(vault_changed 已先到),快速重连到新库;
+      // 崩溃重连:意外断开,退避后重连(保留历史消息,与切库重连区分)
+      const delay = wasSwitch ? 400 : 1500
+      reconnectTimerRef.current = setTimeout(() => connect(), delay)
     }
     ws.onerror = () => setConnected(false)
     ws.onmessage = (ev) => {
@@ -151,17 +168,32 @@ export function useChat() {
           // 知识库已重建,通知 useData 重拉 pages
           window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
           break
+        case 'ingest_started':
+          // ingest 开始:通知设置页禁用切库按钮(D5)
+          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: true } }))
+          break
         case 'ingest_done':
+          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: false } }))
           setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `已处理上传文件 ${msg.raw},知识库已更新` },
           ])
           break
         case 'ingest_error':
+          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: false } }))
           setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `处理 ${msg.raw} 失败:${msg.text}`, error: true },
           ])
+          break
+        case 'vault_changed':
+          // 切库显式信号(D7):清空旧库消息(上下文作废),标记切库重连(短延迟),
+          // 通知 useData 重拉 pages。server 随后会 close 本 WS,触发 onclose 重连到新库。
+          vaultSwitchingRef.current = true
+          setMessages([])
+          streamingIdRef.current = null
+          setStreaming(false)
+          window.dispatchEvent(new CustomEvent('kb-updated'))
           break
         case 'error':
           setMessages((prev) => [
@@ -179,8 +211,13 @@ export function useChat() {
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     connect()
-    return () => wsRef.current?.close()
+    return () => {
+      mountedRef.current = false
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      wsRef.current?.close()
+    }
   }, [connect])
 
   const send = useCallback(

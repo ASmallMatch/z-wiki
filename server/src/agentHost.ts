@@ -20,7 +20,11 @@ const THINKING_LEVEL = 'off' as const
 const AGENT_TOOLS = ['read', 'edit', 'write', 'grep', 'find', 'ls'] as const
 
 export interface AgentContextOptions {
-  /** 当前 Vault 的 kb/ 根目录(agent cwd,随 Vault 切换)。 */
+  /**
+   * 当前 Vault 的 kb/ 根目录(agent cwd,随 Vault 切换)。
+   * 仅用于 buildAgentContext 的初始 existsSync 校验;切库后不靠 AgentContext 携带(D7),
+   * 改由 createChatSession/createIngestSession 的显式 kbRoot 参数传入。
+   */
   kbRoot: string
   /** 全局 agent 目录(`<appRoot>/.pi/agent/`,pi 约定),含 models.json/sessions/bin。 */
   agentDir: string
@@ -30,8 +34,6 @@ export interface AgentContext {
   authStorage: AuthStorage
   modelRegistry: ModelRegistry
   resourceLoader: DefaultResourceLoader
-  /** 当前 Vault 的 kb/ 根(agent cwd,随 Vault 切换)。 */
-  kbRoot: string
   /** 全局 agent 目录(.pi/agent/)。 */
   agentDir: string
   /**
@@ -79,7 +81,7 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
   })
   await resourceLoader.reload()
 
-  return { authStorage, modelRegistry, resourceLoader, kbRoot, agentDir, appRoot, config }
+  return { authStorage, modelRegistry, resourceLoader, agentDir, appRoot, config }
 }
 
 /** 查找配置好的模型,找不到则抛错。 */
@@ -96,6 +98,8 @@ export function resolveModel(ctx: AgentContext) {
 
 export interface CreateChatSessionOptions {
   ctx: AgentContext
+  /** 当前 Vault 的 kb/ 根(agent cwd,随 Vault 切换;D7 显式参数,不从 ctx 取)。 */
+  kbRoot: string
   onEvent: (event: AgentSessionEvent) => void
 }
 
@@ -105,7 +109,8 @@ export interface CreateChatSessionOptions {
  */
 export async function createChatSession(opts: CreateChatSessionOptions): Promise<AgentSession> {
   const model = resolveModel(opts.ctx)
-  const { kbRoot, agentDir, appRoot } = opts.ctx
+  const { agentDir, appRoot } = opts.ctx
+  const { kbRoot } = opts
   const { session } = await createAgentSession({
     cwd: kbRoot,
     agentDir,
@@ -124,6 +129,8 @@ export async function createChatSession(opts: CreateChatSessionOptions): Promise
 
 export interface CreateIngestSessionOptions {
   ctx: AgentContext
+  /** 当前 Vault 的 kb/ 根(agent cwd,随 Vault 切换;D7 显式参数,不从 ctx 取)。 */
+  kbRoot: string
   onEvent: (event: AgentSessionEvent) => void
 }
 
@@ -134,7 +141,8 @@ export interface CreateIngestSessionOptions {
  */
 export async function createIngestSession(opts: CreateIngestSessionOptions): Promise<AgentSession> {
   const model = resolveModel(opts.ctx)
-  const { kbRoot, agentDir } = opts.ctx
+  const { agentDir } = opts.ctx
+  const { kbRoot } = opts
   const { session } = await createAgentSession({
     cwd: kbRoot,
     agentDir,
