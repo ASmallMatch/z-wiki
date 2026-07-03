@@ -10,15 +10,20 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import {
+  applyModelToSessions,
   createChatSession,
   createIngestSession,
+  reloadAgentConfig,
   withFileLock,
   type AgentContext,
 } from './agentHost.js'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { Api, Model } from '@earendil-works/pi-ai'
 import { buildView, type PageMeta } from './buildView.js'
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
-import { PROVIDER_KEY, readConfig, writeConfig, type VaultEntry } from './config.js'
+import { API_SPECS } from './apiSpecs.js'
+import { readConfig, writeConfig, type VaultEntry } from './config.js'
 
 export interface Interaction {
   app: FastifyInstance
@@ -79,12 +84,16 @@ export async function createInteraction(
   // ── 可视数据缓存:buildView 纯函数结果,agent_end 后刷新,HTTP 端点读此 ──
   let viewCache: { pages: PageMeta[]; fragments: Map<string, string> } | null = null
 
-  // ── 对话 WS 客户端集合:ingest 完成后向它们广播 ──────────────────
-  const chatClients = new Set<WebSocket>()
+  // ── 活跃 session 注册表(ADR-0004 D5:reload 后遍历 setModel)──────────────
+  // chatSessions:WS 连接 → 对话 session(断开即 dispose + delete)。
+  // ingestSessions:后台 ingest session(完成后 dispose + delete)。
+  // reload 配置时遍历两者 setModel,不丢对话上下文(pi setModel 不清 messages)。
+  const chatSessions = new Map<WebSocket, AgentSession>()
+  const ingestSessions = new Set<AgentSession>()
 
   function broadcast(msg: unknown): void {
     const data = JSON.stringify(msg)
-    for (const c of chatClients) {
+    for (const c of chatSessions.keys()) {
       if (c.readyState === 1 /* OPEN */) c.send(data)
     }
   }
@@ -192,6 +201,7 @@ export async function createInteraction(
         log.debug({ event: e.type }, 'ingest event')
       },
     })
+    ingestSessions.add(session)
 
     const prompt = [
       `已上传文件 raw/${rawName}。请按 Ingest 工作流处理:`,
@@ -212,6 +222,8 @@ export async function createInteraction(
       await triggerBuild(null)
     } finally {
       activeIngestCount = Math.max(0, activeIngestCount - 1)
+      ingestSessions.delete(session)
+      session.dispose()
     }
   }
 
@@ -231,13 +243,13 @@ export async function createInteraction(
   app.get('/ws', { websocket: true }, async (socket, req) => {
     const log = req.log
     log.info('ws client connected')
-    chatClients.add(socket)
 
     const session = await createChatSession({
       ctx: agentCtx,
       kbRoot: currentKbRoot,
       onEvent: (event) => relayEvent(socket, event),
     })
+    chatSessions.set(socket, session)
 
     socket.on('message', async (raw: Buffer) => {
       const msg = JSON.parse(raw.toString()) as { text?: string }
@@ -253,7 +265,7 @@ export async function createInteraction(
     })
 
     socket.on('close', () => {
-      chatClients.delete(socket)
+      chatSessions.delete(socket)
       // 清理未 flush 的 delta 缓冲与定时器,避免泄漏/迟到写入
       const buf = getDeltaBuf(socket)
       if (buf.timer) clearTimeout(buf.timer)
@@ -335,16 +347,24 @@ export async function createInteraction(
   // 活跃 ingest 状态(D5:切库前检查,前端据此禁用切库按钮)。
   app.get('/api/ingest/active', async () => ({ active: isIngestActive() }))
 
-  // 配置状态(只读):provider/model + apiKey 是否已填(PRD user story 12/22)。
+  // 配置状态(只读):baseUrl/api/model + apiKey 是否已填 + 暴露的 api 规范(ADR-0004 D1/D2)。
   // 不回显 apiKey 明文,只暴露布尔,供设置页展示"已配置/未配置"。读 config.json 真相源(运行时可变)。
-  // 切片 1:provider 固定 'custom'(ADR-0004 D4);切片 2 将改为返回 baseUrl/api/model。
   app.get('/api/config/status', async () => {
     const cfg = readConfig(configPath)
     return {
-      provider: PROVIDER_KEY,
+      baseUrl: cfg.baseUrl,
+      api: cfg.api,
       model: cfg.model,
       hasApiKey: Boolean(cfg.apiKey),
+      exposedApiSpecs: cfg.exposedApiSpecs ?? [],
     }
+  })
+
+  // api 规范 manifest(ADR-0004 D2):供设置页 dropdown 渲染可选规范。
+  // specs = 全量 manifest(openai-completions + anthropic-messages);exposed = config 选中的子集。
+  app.get('/api/specs', async () => {
+    const cfg = readConfig(configPath)
+    return { specs: API_SPECS, exposed: cfg.exposedApiSpecs ?? [] }
   })
 
   // 新建空 Vault:从 kb_example 复制到指定路径(或 appRoot 下派生路径)→ 加入 config.vaults。
@@ -424,7 +444,7 @@ export async function createInteraction(
     const vaultInfo = { path: targetKbRoot, name: vaultDisplayName(targetKbRoot, updatedCfg) }
     // 先推 vault_changed(显式信号,前端据此清空消息 + 区分切库重连),再 close 复用 on('close') 清理。
     broadcast({ type: 'vault_changed', vault: vaultInfo })
-    for (const c of chatClients) {
+    for (const c of chatSessions.keys()) {
       if (c.readyState === 1 /* OPEN */) c.close()
     }
 
@@ -432,21 +452,45 @@ export async function createInteraction(
     return reply.send({ vault: vaultInfo })
   })
 
-  // 修改 API key(D3.1:写 config.json 真相源 + 运行时重新注入 authStorage)。
-  app.put('/api/config/apikey', async (req, reply) => {
-    const body = (req.body ?? {}) as { apiKey?: string }
-    if (!body.apiKey) {
-      return reply.code(400).send({ error: '需提供 apiKey' })
+  // 修改 LLM 配置(ADR-0004 D5/D7):写 config.json + 冷重载(modelRegistry.refresh +
+  // 遍历 chat/ingest session.setModel),不丢对话上下文。替代老的 PUT /api/config/apikey。
+  // 空 apiKey/baseUrl/api/model → 400(Q4.1d:UI 提前拦 + 后端校验兜底)。
+  app.post('/api/config/llm', async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      baseUrl?: string
+      api?: string
+      model?: string
+      apiKey?: string
     }
-    await withFileLock(configPath, async () => {
+    if (!body.apiKey) return reply.code(400).send({ error: '需提供 apiKey' })
+    if (!body.baseUrl) return reply.code(400).send({ error: '需提供 baseUrl' })
+    if (!body.api) return reply.code(400).send({ error: '需提供 api' })
+    if (!body.model) return reply.code(400).send({ error: '需提供 model' })
+
+    // 写 config(writeConfig 规范化 baseUrl),锁内 read-modify-write 后读回规范化值喂 reload
+    const updatedCfg = await withFileLock(configPath, async () => {
       const cfg = readConfig(configPath)
+      cfg.baseUrl = body.baseUrl as string
+      cfg.api = body.api as string
+      cfg.model = body.model as string
       cfg.apiKey = body.apiKey as string
       writeConfig(configPath, cfg)
+      return readConfig(configPath)
     })
-    // 重新注入运行时 apiKey(立即生效,无需重启;auth.json 不落盘,ADR-0003 D3.1)
-    // 切片 1:provider 固定 'custom'(ADR-0004 D4);切片 2 将用 POST /api/config/llm 替代此接口。
-    agentCtx.authStorage.setRuntimeApiKey(PROVIDER_KEY, body.apiKey)
-    req.log.info('apiKey updated and re-injected')
+
+    // 冷重载:refresh modelRegistry + setRuntimeApiKey + resolveModel(D5)
+    let model: Model<Api>
+    try {
+      model = await reloadAgentConfig(agentCtx, updatedCfg)
+    } catch (err) {
+      return reply
+        .code(500)
+        .send({ error: `配置重载失败:${err instanceof Error ? err.message : String(err)}` })
+    }
+    // 遍历所有活跃 session(chat + ingest)换 model,不丢上下文(pi setModel 不清 messages)
+    await applyModelToSessions([...chatSessions.values(), ...ingestSessions], model)
+    broadcast({ type: 'config_reloaded' })
+    req.log.info('LLM config reloaded and applied to all sessions')
     return reply.send({ ok: true })
   })
 

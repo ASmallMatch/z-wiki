@@ -9,6 +9,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
 } from '@earendil-works/pi-coding-agent'
+import type { Api, Model } from '@earendil-works/pi-ai'
 import { KB_SYSTEM_PROMPT } from './prompt.js'
 import { kbHooksFactory } from './kbHooks.js'
 import { PROVIDER_KEY, readConfig, writeModelsJson, type ConfigJson } from './config.js'
@@ -92,6 +93,40 @@ export function resolveModel(ctx: AgentContext) {
     throw new Error(`模型未找到:id="${modelId}"。请检查 config.json 的 baseUrl/api/model 字段。`)
   }
   return model
+}
+
+/**
+ * 冷重载 LLM 配置(ADR-0004 D5):重写 models.json → modelRegistry.refresh() →
+ * setRuntimeApiKey → resolveModel,返回新 model 供调用方遍历 session.setModel。
+ *
+ * 不重建 AgentContext(同一 modelRegistry 对象,session 引用不变)。调用方在 withFileLock
+ * 内 read-modify-write + writeConfig 后,把规范化的 config 传入(writeConfig 已规范化 baseUrl,
+ * generateModelsJson 再规范一次是幂等)。refresh 重读 models.json(同一对象内部更新),
+ * 后续 setModel 不清 messages → 对话上下文保留。
+ */
+export async function reloadAgentConfig(
+  ctx: AgentContext,
+  config: ConfigJson,
+): Promise<Model<Api>> {
+  writeModelsJson(ctx.agentDir, config)
+  ctx.modelRegistry.refresh()
+  ctx.authStorage.setRuntimeApiKey(PROVIDER_KEY, config.apiKey)
+  ctx.config = config
+  return resolveModel(ctx)
+}
+
+/**
+ * 遍历所有活跃 session(chat + ingest),换到新 model(ADR-0004 D5)。
+ * pi 的 setModel 只换 model 引用 + 记 modelChange,不清 messages →
+ * 对话上下文保留,下一轮用新 model + 老上下文。
+ * 调用方保证 model 的 auth 已配置(reloadAgentConfig 内 setRuntimeApiKey 过),
+ * 否则 setModel 抛 "No API key"。
+ */
+export async function applyModelToSessions(
+  sessions: Iterable<AgentSession>,
+  model: Model<Api>,
+): Promise<void> {
+  await Promise.all(Array.from(sessions).map((s) => s.setModel(model)))
 }
 
 export interface CreateChatSessionOptions {

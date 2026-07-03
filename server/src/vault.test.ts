@@ -167,36 +167,127 @@ test('POST /api/vault: 目标路径已存在 → 409(不覆盖既有库)', async
 
 // ── PUT /api/config/apikey ───────────────────────────────────────
 
-test('PUT /api/config/apikey: 写 config.json + 运行时重新注入', async () => {
+test('POST /api/config/llm: 写 config + 冷重载(reload + setModel)→ 200', async () => {
   const vault = await makeVault({})
   const cfgPath = path.join(vault.root, 'config.json')
   const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
   try {
     const res = await interaction.app.inject({
-      method: 'PUT',
-      url: '/api/config/apikey',
-      payload: { apiKey: 'new-secret-key' },
+      method: 'POST',
+      url: '/api/config/llm',
+      payload: {
+        baseUrl: 'https://api.example.com/v1',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+        apiKey: 'new-secret-key',
+      },
     })
     assert.equal(res.statusCode, 200)
-    // config.json 已写入
-    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as { apiKey: string }
+    // config.json 写入(4 字段)
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as Record<string, unknown>
     assert.equal(cfg.apiKey, 'new-secret-key')
+    assert.equal(cfg.baseUrl, 'https://api.example.com/v1')
+    assert.equal(cfg.api, 'openai-completions')
+    assert.equal(cfg.model, 'gpt-4o')
+    // models.json 重写(reloadAgentConfig 调 writeModelsJson + refresh 重读)
+    const modelsJson = JSON.parse(
+      await fs.readFile(path.join(vault.agentDir, 'models.json'), 'utf-8'),
+    ) as { providers: { custom: { models: Array<{ id: string }> } } }
+    assert.equal(modelsJson.providers.custom.models[0].id, 'gpt-4o')
   } finally {
     await interaction.app.close()
     await fs.rm(vault.root, { recursive: true, force: true })
   }
 })
 
-test('PUT /api/config/apikey: 空 apiKey → 400', async () => {
+test('POST /api/config/llm: 空 apiKey → 400(不重载)', async () => {
   const vault = await makeVault({})
   const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
   try {
     const res = await interaction.app.inject({
-      method: 'PUT',
-      url: '/api/config/apikey',
-      payload: { apiKey: '' },
+      method: 'POST',
+      url: '/api/config/llm',
+      payload: { baseUrl: 'https://h/v1', api: 'openai-completions', model: 'gpt-4o', apiKey: '' },
     })
     assert.equal(res.statusCode, 400)
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('POST /api/config/llm: 空 baseUrl → 400', async () => {
+  const vault = await makeVault({})
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/config/llm',
+      payload: { baseUrl: '', api: 'openai-completions', model: 'gpt-4o', apiKey: 'k' },
+    })
+    assert.equal(res.statusCode, 400)
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('POST /api/config/llm: baseUrl 规范化(写入时剥尾部 suffix)', async () => {
+  const vault = await makeVault({})
+  const cfgPath = path.join(vault.root, 'config.json')
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/config/llm',
+      payload: {
+        baseUrl: 'https://api.example.com/v1/chat/completions',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+        apiKey: 'k',
+      },
+    })
+    assert.equal(res.statusCode, 200)
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as { baseUrl: string }
+    assert.equal(cfg.baseUrl, 'https://api.example.com/v1')
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('GET /api/specs: 返回 api 规范 manifest + exposed 子集', async () => {
+  const vault = await makeVault({})
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({ method: 'GET', url: '/api/specs' })
+    assert.equal(res.statusCode, 200)
+    const body = JSON.parse(res.body) as {
+      specs: Array<{ id: string; label: string; suffix: string }>
+      exposed: string[]
+    }
+    assert.ok(body.specs.length >= 2)
+    assert.ok(body.specs.some((s) => s.id === 'openai-completions'))
+    assert.ok(body.specs.some((s) => s.id === 'anthropic-messages'))
+    assert.deepEqual(body.exposed, ['openai-completions', 'anthropic-messages'])
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('GET /api/config/status: 返回 baseUrl/api/model + hasApiKey + exposedApiSpecs', async () => {
+  const vault = await makeVault({})
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({ method: 'GET', url: '/api/config/status' })
+    assert.equal(res.statusCode, 200)
+    const body = JSON.parse(res.body) as Record<string, unknown>
+    assert.equal(body.baseUrl, 'https://ark.cn-beijing.volces.com/api/coding')
+    assert.equal(body.api, 'anthropic-messages')
+    assert.equal(body.model, 'ark-code-latest')
+    assert.equal(body.hasApiKey, true)
+    assert.ok(Array.isArray(body.exposedApiSpecs))
   } finally {
     await interaction.app.close()
     await fs.rm(vault.root, { recursive: true, force: true })
