@@ -157,3 +157,32 @@ test('applyModelToSessions: setModel 抛错 → reject(不吞,让调用方感知
 
   await assert.rejects(() => applyModelToSessions(sessions, mockModel), /No API key/)
 })
+
+test('applyModelToSessions: 部分失败不中断其他 session(allSettled),失败汇总抛错', async () => {
+  const mockModel = { id: 'gpt-4o' } as unknown as Model<Api>
+  const successCalls: unknown[] = []
+  const sessions = [
+    {
+      setModel: async (m: unknown) => {
+        successCalls.push(m)
+      },
+    },
+    {
+      setModel: async () => {
+        throw new Error('session-2 failed')
+      },
+    },
+    {
+      setModel: async (m: unknown) => {
+        successCalls.push(m)
+      },
+    },
+  ] as unknown as AgentSession[]
+
+  // 第 2 个失败,但第 1/3 个应仍执行(allSettled 不中断)
+  await assert.rejects(() => applyModelToSessions(sessions, mockModel), /session-2 failed/)
+  assert.equal(successCalls.length, 2, '失败前后两个 session 仍应 setModel')
+  for (const call of successCalls) {
+    assert.equal(call, mockModel)
+  }
+})

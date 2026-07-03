@@ -121,12 +121,20 @@ export async function reloadAgentConfig(
  * 对话上下文保留,下一轮用新 model + 老上下文。
  * 调用方保证 model 的 auth 已配置(reloadAgentConfig 内 setRuntimeApiKey 过),
  * 否则 setModel 抛 "No API key"。
+ *
+ * 用 allSettled 而非 Promise.all:一个 session 失败不中断其他 session 换 model,
+ * 失败汇总后抛错让调用方感知(避免部分换部分没换的静默分裂)。
  */
 export async function applyModelToSessions(
   sessions: Iterable<AgentSession>,
   model: Model<Api>,
 ): Promise<void> {
-  await Promise.all(Array.from(sessions).map((s) => s.setModel(model)))
+  const results = await Promise.allSettled(Array.from(sessions).map((s) => s.setModel(model)))
+  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (failures.length > 0) {
+    const reasons = failures.map((f) => String(f.reason)).join('; ')
+    throw new Error(`部分 session 换 model 失败:${reasons}`)
+  }
 }
 
 export interface CreateChatSessionOptions {

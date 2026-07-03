@@ -249,6 +249,13 @@ export async function createInteraction(
       kbRoot: currentKbRoot,
       onEvent: (event) => relayEvent(socket, event),
     })
+    // createChatSession 期间客户端可能已断开(快速刷新/网络抖动):已 close 的 socket
+    // 不再触发 close 事件,若不检查会导致 session 不 dispose + chatSessions 残留 dead entry。
+    if (socket.readyState !== 1 /* OPEN */) {
+      log.warn('ws client disconnected during session creation, disposing session')
+      session.dispose()
+      return
+    }
     chatSessions.set(socket, session)
 
     socket.on('message', async (raw: Buffer) => {
@@ -462,10 +469,18 @@ export async function createInteraction(
       model?: string
       apiKey?: string
     }
-    if (!body.apiKey) return reply.code(400).send({ error: '需提供 apiKey' })
-    if (!body.baseUrl) return reply.code(400).send({ error: '需提供 baseUrl' })
-    if (!body.api) return reply.code(400).send({ error: '需提供 api' })
-    if (!body.model) return reply.code(400).send({ error: '需提供 model' })
+    // 校验:4 字段都必须是非空字符串(防空 + 防非字符串类型,coding-style 边界校验)
+    const required: Array<[unknown, string]> = [
+      [body.apiKey, 'apiKey'],
+      [body.baseUrl, 'baseUrl'],
+      [body.api, 'api'],
+      [body.model, 'model'],
+    ]
+    for (const [val, name] of required) {
+      if (typeof val !== 'string' || !val) {
+        return reply.code(400).send({ error: `需提供 ${name}` })
+      }
+    }
 
     // 写 config(writeConfig 规范化 baseUrl),锁内 read-modify-write 后读回规范化值喂 reload
     const updatedCfg = await withFileLock(configPath, async () => {
@@ -479,13 +494,14 @@ export async function createInteraction(
     })
 
     // 冷重载:refresh modelRegistry + setRuntimeApiKey + resolveModel(D5)
+    // 注意:config.json 已写入,即使 reload 失败配置也已保存——错误信息须如实告知。
     let model: Model<Api>
     try {
       model = await reloadAgentConfig(agentCtx, updatedCfg)
     } catch (err) {
-      return reply
-        .code(500)
-        .send({ error: `配置重载失败:${err instanceof Error ? err.message : String(err)}` })
+      return reply.code(500).send({
+        error: `配置已保存但重载失败:${err instanceof Error ? err.message : String(err)}。请修正后重新载入。`,
+      })
     }
     // 遍历所有活跃 session(chat + ingest)换 model,不丢上下文(pi setModel 不清 messages)
     await applyModelToSessions([...chatSessions.values(), ...ingestSessions], model)
