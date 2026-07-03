@@ -45,7 +45,7 @@ test('readConfig: 文件不存在 → 明确报错指向 config.example.json', a
   }
 })
 
-test('readConfig: 缺 apiKey → 报错"agent 不可用"', async () => {
+test('readConfig: 缺 apiKey → 不报错(桌面首次启动空 apiKey 是正常态,ADR-0003 D4)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
     const cfgPath = path.join(tmp, 'config.json')
@@ -54,7 +54,24 @@ test('readConfig: 缺 apiKey → 报错"agent 不可用"', async () => {
       JSON.stringify({ apiKey: '', provider: 'ark', model: 'ark-code-latest' }),
       'utf-8',
     )
-    assert.throws(() => readConfig(cfgPath), /缺少 apiKey.*agent 不可用/)
+    const cfg = readConfig(cfgPath)
+    assert.equal(cfg.apiKey, '')
+    assert.equal(cfg.provider, 'ark')
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('readConfig: 缺 provider → 报错', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    await fs.writeFile(
+      cfgPath,
+      JSON.stringify({ apiKey: 'k', provider: '', model: 'ark-code-latest' }),
+      'utf-8',
+    )
+    assert.throws(() => readConfig(cfgPath), /缺少 provider/)
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }

@@ -1,35 +1,13 @@
-// main.ts — Electron 主进程:嵌入 server + 开窗口显示 SPA(ADR-0003 D1/D2/D2.1)。
-// 切片 03:dev 形态,复用项目根 .pi/agent + config.json + kb/(切片 04 改传 UserDataDir)。
+// main.ts — Electron 主进程:首次启动初始化 + 嵌入 server + 开窗口显示 SPA。
+// 切片 04:路径切到 UserDataDir(ADR-0003 D3),首次启动从 bundle 复制 kb_example + 铺放 rg/fd(D4/D8)。
 // 依赖方向单向(D9):只 import createServer,不深入 server 内部模块。
+import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DIR + PI_OFFLINE(见 env.ts 注释)
 import { app, BrowserWindow, shell } from 'electron'
-import path from 'node:path'
 import { createServer } from '@z-wiki/server'
-import { loadWindowBounds, saveWindowBounds, configPathFor } from './windowState.js'
-
-// 禁用 pi 下载分支(ADR-0003 D8):必须在 buildAgentContext 之前。
-// server 顶层模块代码不读 PI_OFFLINE;pi SDK 在 buildAgentContext→ensureTool 时才读,
-// 故此赋值在 createServer 调用前即可生效。
-process.env.PI_OFFLINE = '1'
-
-interface DesktopPaths {
-  kbRoot: string
-  agentDir: string
-  webDist: string
-  configPath: string
-}
-
-/**
- * 解析桌面运行路径。切片 03 默认项目根(dev 形态),切片 04 改 UserDataDir 时
- * 覆盖 ZWIKI_* 环境变量即可,无需重构此处(ADR-0003 D3 路径可配)。
- */
-function resolveDesktopPaths(): DesktopPaths {
-  // app.getAppPath() = desktop/ 目录(electron . 加载点);repoRoot = 上一级。
-  const repoRoot = path.resolve(app.getAppPath(), '..')
-  const agentDir = process.env.ZWIKI_AGENT_DIR ?? path.join(repoRoot, '.pi/agent')
-  const kbRoot = process.env.ZWIKI_KB_ROOT ?? path.join(repoRoot, 'kb')
-  const webDist = process.env.ZWIKI_WEB_DIST ?? path.join(repoRoot, 'web/dist')
-  return { kbRoot, agentDir, webDist, configPath: configPathFor(agentDir) }
-}
+import { resolveDesktopPaths } from './paths.js'
+import { ensureFirstRun } from './firstRun.js'
+import { ensureToolBins } from './toolBins.js'
+import { loadWindowBounds, saveWindowBounds } from './windowState.js'
 
 let interaction: Awaited<ReturnType<typeof createServer>> | null = null
 let mainWindow: BrowserWindow | null = null
@@ -46,6 +24,11 @@ function persistWindowBounds(): void {
 async function bootstrap(): Promise<void> {
   const paths = resolveDesktopPaths()
   configPath = paths.configPath
+
+  // 首次启动:从 bundle 复制首个 Vault + 写初始 config.json(ADR-0003 D4)。
+  ensureFirstRun(paths)
+  // 铺放 rg/fd 到 pi 的 getBinDir()(D8),版本不一致才重铺。
+  ensureToolBins(paths)
 
   interaction = await createServer({
     kbRoot: paths.kbRoot,

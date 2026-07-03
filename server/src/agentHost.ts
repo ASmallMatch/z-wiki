@@ -59,6 +59,10 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
 
   // 引导配置(单一真相源):读 config.json,生成 models.json(派生产物)喂 ModelRegistry。
   const config = readConfig(path.join(appRoot, 'config.json'))
+  // apiKey 空是桌面首次启动的正常态(ADR-0003 D4);warn 提示开发者,agent 调用会在 WS prompt 失败。
+  if (!config.apiKey) {
+    console.warn('[z-wiki] config.json 的 apiKey 为空,agent 调用将失败(切片 05 设置页填 key)。')
+  }
   const modelsJsonPath = writeModelsJson(agentDir, config)
 
   // authStorage 用内存后端 + setRuntimeApiKey:apiKey 运行时注入,auth.json 不落盘(ADR-0003 D3.1)。

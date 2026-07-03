@@ -67,8 +67,9 @@ export function generateModelsJson(config: Pick<ConfigJson, 'provider' | 'model'
 }
 
 /**
- * 读取并校验 config.json。缺失或字段不全时失败快(对应 PRD:未配置 key 时明确提示)。
- * 不做 schema 全量验证,只校验启动所需字段(apiKey/provider/model)。
+ * 读取并校验 config.json。缺失或 provider/model 不全时失败快。
+ * apiKey 不在此校验:桌面首次启动 apiKey 必空(ADR-0003 D4,切片 05 设置页填),
+ * 校验放在 agent 调用层(WS prompt 的 try/catch 捕获 LLM 401,ADR-0003 决策 4:空 apiKey 壳能起)。
  */
 export function readConfig(configPath: string): ConfigJson {
   if (!existsSync(configPath)) {
@@ -83,9 +84,6 @@ export function readConfig(configPath: string): ConfigJson {
     throw new Error(`配置文件解析失败:${configPath}\n${(e as Error).message}`)
   }
   const cfg = parsed as ConfigJson
-  if (!cfg.apiKey) {
-    throw new Error('config.json 缺少 apiKey,agent 不可用。请填入 Ark API key。')
-  }
   if (!cfg.provider) {
     throw new Error('config.json 缺少 provider(首版固定 "ark")。')
   }
