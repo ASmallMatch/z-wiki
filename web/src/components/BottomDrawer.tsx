@@ -81,9 +81,7 @@ export default function BottomDrawer({ pages, isOpen, onClose, onItemClick }: Bo
                     type="button"
                   >
                     <span className="bottom-drawer-item-title">{page.title}</span>
-                    <span className="bottom-drawer-item-summary">
-                      {page.summary || page.title}
-                    </span>
+                    <span className="bottom-drawer-item-summary">{page.summary || page.title}</span>
                     <span className="bottom-drawer-item-meta mono">
                       {group.label} · {page.updated}
                     </span>

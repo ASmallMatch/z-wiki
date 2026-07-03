@@ -1,7 +1,7 @@
-import dotenv from "dotenv";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import dotenv from 'dotenv'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
 import {
   AuthStorage,
   DefaultResourceLoader,
@@ -10,29 +10,29 @@ import {
   createAgentSession,
   type AgentSession,
   type AgentSessionEvent,
-} from "@earendil-works/pi-coding-agent";
-import { KB_SYSTEM_PROMPT } from "./prompt.js";
-import { kbHooksFactory } from "./kbHooks.js";
-import { kbRoot } from "./kbLayout.js";
+} from '@earendil-works/pi-coding-agent'
+import { KB_SYSTEM_PROMPT } from './prompt.js'
+import { kbHooksFactory } from './kbHooks.js'
+import { kbRoot } from './kbLayout.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, "../..");
-const KB_ROOT = kbRoot(PROJECT_ROOT);
-const AGENT_DIR = path.join(PROJECT_ROOT, ".pi/agent");
-const MODELS_JSON = path.join(AGENT_DIR, "models.json");
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const PROJECT_ROOT = path.resolve(__dirname, '../..')
+const KB_ROOT = kbRoot(PROJECT_ROOT)
+const AGENT_DIR = path.join(PROJECT_ROOT, '.pi/agent')
+const MODELS_JSON = path.join(AGENT_DIR, 'models.json')
 
 // 显式加载项目根目录的 .env(npm -w server 的 cwd 是 server/,默认 dotenv 找不到)
-dotenv.config({ path: path.join(PROJECT_ROOT, ".env") });
+dotenv.config({ path: path.join(PROJECT_ROOT, '.env') })
 
 // LLM 配置(可配置项暴露于此,改 provider/model 在此调整)
-const PROVIDER = "ark";
-const MODEL_ID = "ark-code-latest";
-const THINKING_LEVEL = "off" as const;
+const PROVIDER = 'ark'
+const MODEL_ID = 'ark-code-latest'
+const THINKING_LEVEL = 'off' as const
 
 export interface AgentContext {
-  authStorage: AuthStorage;
-  modelRegistry: ModelRegistry;
-  resourceLoader: DefaultResourceLoader;
+  authStorage: AuthStorage
+  modelRegistry: ModelRegistry
+  resourceLoader: DefaultResourceLoader
 }
 
 /**
@@ -42,18 +42,16 @@ export interface AgentContext {
 export async function buildAgentContext(): Promise<AgentContext> {
   // layer1 内容必须在 kb/(ADR-0002)。缺失则提示从样板起步,失败快。
   if (!existsSync(KB_ROOT)) {
-    throw new Error(
-      `知识库目录不存在:${KB_ROOT}\n请先复制样板起步:cp -r kb_example kb`
-    );
+    throw new Error(`知识库目录不存在:${KB_ROOT}\n请先复制样板起步:cp -r kb_example kb`)
   }
 
-  const authStorage = AuthStorage.create(path.join(AGENT_DIR, "auth.json"));
-  const modelRegistry = ModelRegistry.create(authStorage, MODELS_JSON);
+  const authStorage = AuthStorage.create(path.join(AGENT_DIR, 'auth.json'))
+  const modelRegistry = ModelRegistry.create(authStorage, MODELS_JSON)
 
   // 运行时注入 API key(不落盘)。优先用 .env 的 ARK_API_KEY。
-  const apiKey = process.env.ARK_API_KEY;
+  const apiKey = process.env.ARK_API_KEY
   if (apiKey) {
-    authStorage.setRuntimeApiKey(PROVIDER, apiKey);
+    authStorage.setRuntimeApiKey(PROVIDER, apiKey)
   }
 
   // 资源加载器:注入知识库系统提示词 + kb 钩子 extension
@@ -62,36 +60,34 @@ export async function buildAgentContext(): Promise<AgentContext> {
     agentDir: AGENT_DIR,
     systemPromptOverride: () => KB_SYSTEM_PROMPT,
     extensionFactories: [kbHooksFactory],
-  });
-  await resourceLoader.reload();
+  })
+  await resourceLoader.reload()
 
-  return { authStorage, modelRegistry, resourceLoader };
+  return { authStorage, modelRegistry, resourceLoader }
 }
 
 /** 查找配置好的模型,找不到则抛错。 */
 export function resolveModel(ctx: AgentContext) {
-  const model = ctx.modelRegistry.find(PROVIDER, MODEL_ID);
+  const model = ctx.modelRegistry.find(PROVIDER, MODEL_ID)
   if (!model) {
     throw new Error(
-      `模型未找到:provider="${PROVIDER}" id="${MODEL_ID}"。请检查 .pi/agent/models.json。`
-    );
+      `模型未找到:provider="${PROVIDER}" id="${MODEL_ID}"。请检查 .pi/agent/models.json。`,
+    )
   }
-  return model;
+  return model
 }
 
 export interface CreateChatSessionOptions {
-  ctx: AgentContext;
-  onEvent: (event: AgentSessionEvent) => void;
+  ctx: AgentContext
+  onEvent: (event: AgentSessionEvent) => void
 }
 
 /**
  * 创建对话 agent 会话(常驻,in-memory)。
  * 前端消息经 WS 进来 → session.prompt() → onEvent 推回前端。
  */
-export async function createChatSession(
-  opts: CreateChatSessionOptions
-): Promise<AgentSession> {
-  const model = resolveModel(opts.ctx);
+export async function createChatSession(opts: CreateChatSessionOptions): Promise<AgentSession> {
+  const model = resolveModel(opts.ctx)
   const { session } = await createAgentSession({
     cwd: KB_ROOT,
     agentDir: AGENT_DIR,
@@ -101,19 +97,16 @@ export async function createChatSession(
     modelRegistry: opts.ctx.modelRegistry,
     resourceLoader: opts.ctx.resourceLoader,
     // 落盘到 .pi/agent/sessions/chat/——每次连接新建会话文件,不续上下文,历史留档
-    sessionManager: SessionManager.create(
-      PROJECT_ROOT,
-      path.join(AGENT_DIR, "sessions", "chat")
-    ),
-    tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
-  });
-  session.subscribe(opts.onEvent);
-  return session;
+    sessionManager: SessionManager.create(PROJECT_ROOT, path.join(AGENT_DIR, 'sessions', 'chat')),
+    tools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
+  })
+  session.subscribe(opts.onEvent)
+  return session
 }
 
 export interface CreateIngestSessionOptions {
-  ctx: AgentContext;
-  onEvent: (event: AgentSessionEvent) => void;
+  ctx: AgentContext
+  onEvent: (event: AgentSessionEvent) => void
 }
 
 /**
@@ -121,10 +114,8 @@ export interface CreateIngestSessionOptions {
  * 共享对话 agent 的 loader/modelRegistry/auth,但会话独立。
  * 上传 .md → 归档 raw → session.prompt(Ingest 指令) → agent_end 推结果。
  */
-export async function createIngestSession(
-  opts: CreateIngestSessionOptions
-): Promise<AgentSession> {
-  const model = resolveModel(opts.ctx);
+export async function createIngestSession(opts: CreateIngestSessionOptions): Promise<AgentSession> {
+  const model = resolveModel(opts.ctx)
   const { session } = await createAgentSession({
     cwd: KB_ROOT,
     agentDir: AGENT_DIR,
@@ -134,32 +125,35 @@ export async function createIngestSession(
     modelRegistry: opts.ctx.modelRegistry,
     resourceLoader: opts.ctx.resourceLoader,
     // 持久化到 .pi/sessions/,文件名带时间戳避免覆盖
-    sessionManager: SessionManager.create(path.join(AGENT_DIR, "sessions")),
-    tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
-  });
-  session.subscribe(opts.onEvent);
-  return session;
+    sessionManager: SessionManager.create(path.join(AGENT_DIR, 'sessions')),
+    tools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'],
+  })
+  session.subscribe(opts.onEvent)
+  return session
 }
 
 // ── 文件写锁:避免对话 agent 与后台 ingest agent 同时写同一文件 ──
-const writeLocks = new Map<string, Promise<unknown>>();
+const writeLocks = new Map<string, Promise<unknown>>()
 
 /** 对给定文件路径串行执行 async 任务(按文件排队)。 */
 export async function withFileLock<T>(filePath: string, fn: () => Promise<T>): Promise<T> {
-  const prev = writeLocks.get(filePath) ?? Promise.resolve();
-  let release!: () => void;
+  const prev = writeLocks.get(filePath) ?? Promise.resolve()
+  let release!: () => void
   const next = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  writeLocks.set(filePath, prev.then(() => next));
-  await prev;
+    release = resolve
+  })
+  writeLocks.set(
+    filePath,
+    prev.then(() => next),
+  )
+  await prev
   try {
-    return await fn();
+    return await fn()
   } finally {
-    release();
+    release()
     // 清理:若当前锁已是队尾,移除避免 Map 无限增长
     if (writeLocks.get(filePath) === next) {
-      writeLocks.delete(filePath);
+      writeLocks.delete(filePath)
     }
   }
 }

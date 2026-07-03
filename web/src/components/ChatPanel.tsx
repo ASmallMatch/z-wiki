@@ -6,7 +6,8 @@ function describeArgs(tool: string, args: unknown): string | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
   // pi 的 read/edit/write 兼容 file_path 与 path 两种参数名
-  const filePath = typeof a.file_path === 'string' ? a.file_path : typeof a.path === 'string' ? a.path : null
+  const filePath =
+    typeof a.file_path === 'string' ? a.file_path : typeof a.path === 'string' ? a.path : null
   if (filePath && (tool === 'read' || tool === 'edit' || tool === 'write')) {
     const parts = [filePath]
     if (typeof a.offset === 'number') parts.push(`offset=${a.offset}`)
@@ -64,12 +65,12 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         ) : empty ? (
           <div className="chat-pending">…</div>
         ) : (
-          segments.map(seg =>
+          segments.map((seg) =>
             seg.kind === 'text' ? (
               <TextBlock key={seg.id} text={seg.text} />
             ) : (
               <ToolChip key={seg.id} seg={seg} />
-            )
+            ),
           )
         )}
       </div>
@@ -113,16 +114,18 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
   return (
     <div className="chat-panel">
       <div className="chat-drawer-header">
-        <span className="chat-status">
-          {connected ? '● 已连接' : '○ 未连接'}
-        </span>
-        <button
-          type="button"
-          className="chat-drawer-close"
-          onClick={onClose}
-          aria-label="关闭对话"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <span className="chat-status">{connected ? '● 已连接' : '○ 未连接'}</span>
+        <button type="button" className="chat-drawer-close" onClick={onClose} aria-label="关闭对话">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -132,7 +135,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         {messages.length === 0 ? (
           <div className="chat-empty">向知识库智能体提问,它会按工作流检索 wiki 并回答。</div>
         ) : (
-          messages.map(m => <MessageBubble key={m.id} msg={m} />)
+          messages.map((m) => <MessageBubble key={m.id} msg={m} />)
         )}
       </div>
       <div className="chat-input-row">
@@ -140,7 +143,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
           className="chat-input"
           placeholder={connected ? '输入消息,Enter 发送,Shift+Enter 换行' : '正在连接...'}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
           rows={2}
           disabled={!connected || streaming}

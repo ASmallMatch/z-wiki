@@ -22,7 +22,16 @@ export interface ChatMessage {
 }
 
 interface ServerMsg {
-  type: 'text_delta' | 'tool_start' | 'tool_end' | 'done' | 'error' | 'system' | 'kb_updated' | 'ingest_done' | 'ingest_error'
+  type:
+    | 'text_delta'
+    | 'tool_start'
+    | 'tool_end'
+    | 'done'
+    | 'error'
+    | 'system'
+    | 'kb_updated'
+    | 'ingest_done'
+    | 'ingest_error'
   text?: string
   tool?: string
   args?: unknown
@@ -37,7 +46,7 @@ const nextId = () => `m${Date.now()}-${counter++}`
 
 /** 不可变更新:替换数组中指定 id 的元素。 */
 function replaceById<T extends { id: string }>(arr: T[], id: string, next: T): T[] {
-  return arr.map(it => (it.id === id ? next : it))
+  return arr.map((it) => (it.id === id ? next : it))
 }
 
 export function useChat() {
@@ -67,16 +76,19 @@ export function useChat() {
       switch (msg.type) {
         case 'text_delta': {
           // 累加到当前 assistant 回合:若末段是 text 则续写,否则新建 text 段
-          setMessages(prev => {
+          setMessages((prev) => {
             const id = streamingIdRef.current
             if (!id) return prev
             const delta = msg.text ?? ''
-            return prev.map(m => {
+            return prev.map((m) => {
               if (m.id !== id) return m
               const segs = m.segments ?? []
               const last = segs[segs.length - 1]
               if (last && last.kind === 'text') {
-                return { ...m, segments: replaceById(segs, last.id, { ...last, text: last.text + delta }) }
+                return {
+                  ...m,
+                  segments: replaceById(segs, last.id, { ...last, text: last.text + delta }),
+                }
               }
               const seg: Segment = { kind: 'text', id: nextId(), text: delta }
               return { ...m, segments: [...segs, seg] }
@@ -86,7 +98,7 @@ export function useChat() {
         }
         case 'tool_start': {
           // 追加 running 工具段,保留与前后文本的时序
-          setMessages(prev => {
+          setMessages((prev) => {
             const id = streamingIdRef.current
             if (!id || !msg.tool) return prev
             const seg: Segment = {
@@ -96,19 +108,19 @@ export function useChat() {
               status: 'running',
               args: msg.args,
             }
-            return prev.map(m =>
-              m.id === id ? { ...m, segments: [...(m.segments ?? []), seg] } : m
+            return prev.map((m) =>
+              m.id === id ? { ...m, segments: [...(m.segments ?? []), seg] } : m,
             )
           })
           break
         }
         case 'tool_end': {
           // 配对最近一个同名 running 工具段,置为 done/error
-          setMessages(prev => {
+          setMessages((prev) => {
             const id = streamingIdRef.current
             if (!id || !msg.tool) return prev
             const errored = Boolean(msg.error)
-            return prev.map(m => {
+            return prev.map((m) => {
               if (m.id !== id) return m
               const segs = m.segments ?? []
               // 从末尾找最近一个同名 running
@@ -122,7 +134,10 @@ export function useChat() {
               }
               if (idx === -1) return m
               const updated = segs.slice()
-              updated[idx] = { ...updated[idx] as Extract<Segment, { kind: 'tool' }>, status: errored ? 'error' : 'done' }
+              updated[idx] = {
+                ...(updated[idx] as Extract<Segment, { kind: 'tool' }>),
+                status: errored ? 'error' : 'done',
+              }
               return { ...m, segments: updated }
             })
           })
@@ -137,19 +152,19 @@ export function useChat() {
           window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
           break
         case 'ingest_done':
-          setMessages(prev => [
+          setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `已处理上传文件 ${msg.raw},知识库已更新` },
           ])
           break
         case 'ingest_error':
-          setMessages(prev => [
+          setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `处理 ${msg.raw} 失败:${msg.text}`, error: true },
           ])
           break
         case 'error':
-          setMessages(prev => [
+          setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: msg.text ?? '未知错误', error: true },
           ])
@@ -175,7 +190,7 @@ export function useChat() {
       // 推入用户消息,并预建一条空 assistant 回合用于流式累加
       const assistantId = nextId()
       streamingIdRef.current = assistantId
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         { id: nextId(), role: 'user', text: trimmed },
         { id: assistantId, role: 'assistant', segments: [] },
@@ -183,12 +198,12 @@ export function useChat() {
       setStreaming(true)
       wsRef.current.send(JSON.stringify({ text: trimmed }))
     },
-    [streaming]
+    [streaming],
   )
 
   const upload = useCallback(async (file: File) => {
     if (!file) return
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
       { id: nextId(), role: 'system', text: `上传 ${file.name} 中…` },
     ])
@@ -198,20 +213,30 @@ export function useChat() {
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) {
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
-          { id: nextId(), role: 'system', text: `上传失败:${data.error ?? res.status}`, error: true },
+          {
+            id: nextId(),
+            role: 'system',
+            text: `上传失败:${data.error ?? res.status}`,
+            error: true,
+          },
         ])
       } else {
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
           { id: nextId(), role: 'system', text: `${file.name} 已上传,后台编译中…` },
         ])
       }
     } catch (err) {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { id: nextId(), role: 'system', text: `上传出错:${err instanceof Error ? err.message : String(err)}`, error: true },
+        {
+          id: nextId(),
+          role: 'system',
+          text: `上传出错:${err instanceof Error ? err.message : String(err)}`,
+          error: true,
+        },
       ])
     }
   }, [])

@@ -13,11 +13,7 @@ export default function App() {
 
   return (
     <>
-      <Header
-        pages={pages}
-        chatOpen={chatOpen}
-        onToggleChat={() => setChatOpen(true)}
-      />
+      <Header pages={pages} chatOpen={chatOpen} onToggleChat={() => setChatOpen(true)} />
       <main className="app-main">
         {error ? (
           <div className="app-error">
