@@ -1,4 +1,4 @@
-.PHONY: help install dev dev-server dev-web build health typecheck lint format format-check stop clean
+.PHONY: help install dev dev-server dev-web desktop build health typecheck lint format format-check stop clean
 
 PORT ?= 3000
 WEB_PORT ?= 5173
@@ -20,6 +20,9 @@ dev-web: ## 仅启动前端(web :$(WEB_PORT),proxy 到 server)
 
 build: ## 构建前端 + 后端产物
 	npm run build
+
+desktop: ## 构建并启动 Electron 桌面壳(先 build web+server,再 build+run desktop)
+	npm run desktop
 
 health: ## 知识库健康检查(断链/孤儿/空文件等)
 	npm run health

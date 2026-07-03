@@ -17,12 +17,21 @@ const HOST = process.env.HOST ?? '127.0.0.1'
 export type { AgentContextOptions } from './agentHost.js'
 
 /**
+ * createServer 选项。webDistPath 可选:提供时 server 用 @fastify/static 同端口 serve
+ * 前端构建产物(prod/桌面形态,ADR-0003 D2.1);不提供时保留 dev 占位(/ 走 vite proxy)。
+ */
+export interface CreateServerOptions extends AgentContextOptions {
+  /** web/dist 静态资源绝对路径;省略则不托管前端(dev 形态走 vite proxy)。 */
+  webDistPath?: string
+}
+
+/**
  * 构建 server:agent context + interaction + 初始 buildView,返回已注册路由的 Fastify app(未 listen)。
  * dev 形态由 start() 调用并 listen;桌面形态由 Electron 主进程 listen 随机端口(ADR-0003 D2)。
  */
-export async function createServer(opts: AgentContextOptions): Promise<Interaction> {
+export async function createServer(opts: CreateServerOptions): Promise<Interaction> {
   const agentCtx = await buildAgentContext(opts)
-  const interaction = await createInteraction(agentCtx)
+  const interaction = await createInteraction(agentCtx, opts.webDistPath)
   interaction.log.info('agent context ready')
   const total = await interaction.refreshView()
   interaction.log.info({ total }, 'initial buildView done')

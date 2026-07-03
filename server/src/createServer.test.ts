@@ -97,3 +97,54 @@ test('createServer: 路径参数生效——不同 vault 返回不同内容', as
     ])
   }
 })
+
+// webDistPath 提供时,@fastify/static 同端口 serve 前端构建产物(ADR-0003 D2.1)。
+test('createServer: webDistPath 提供时,GET / 返回 index.html,SPA 路由回退 index.html', async () => {
+  const vault = await makeVault({})
+  // 造一个最小 web/dist:含 index.html 与一个静态资源
+  const webDist = path.join(vault.root, 'web/dist')
+  await fs.mkdir(webDist, { recursive: true })
+  await fs.writeFile(path.join(webDist, 'index.html'), '<!doctype html><body>SPA</body>', 'utf-8')
+  await fs.writeFile(path.join(webDist, 'favicon.ico'), 'ICON', 'utf-8')
+  const interaction = await createServer({
+    kbRoot: vault.kbRoot,
+    agentDir: vault.agentDir,
+    webDistPath: webDist,
+  })
+  try {
+    const root = await interaction.app.inject({ method: 'GET', url: '/' })
+    assert.equal(root.statusCode, 200)
+    assert.match(root.body, /SPA/)
+
+    // 已存在的静态资源直接返回
+    const ico = await interaction.app.inject({ method: 'GET', url: '/favicon.ico' })
+    assert.equal(ico.statusCode, 200)
+
+    // SPA 路由(/pages/01-foo 无对应文件)回退到 index.html,交前端路由
+    const spa = await interaction.app.inject({ method: 'GET', url: '/pages/01-foo' })
+    assert.equal(spa.statusCode, 200)
+    assert.match(spa.body, /SPA/)
+
+    // /api 未知路由仍返回 JSON 404,不被吞成 index.html
+    const api404 = await interaction.app.inject({ method: 'GET', url: '/api/nonexistent' })
+    assert.equal(api404.statusCode, 404)
+    assert.equal((api404.json() as { error: string }).error, 'not found')
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+// webDistPath 省略时(dev 形态),/ 仍返回文本占位,不受静态托管影响。
+test('createServer: webDistPath 省略时,/ 返回 dev 占位文本', async () => {
+  const vault = await makeVault({})
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({ method: 'GET', url: '/' })
+    assert.equal(res.statusCode, 200)
+    assert.match(res.body, /vite dev server/)
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})

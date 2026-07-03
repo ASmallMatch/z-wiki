@@ -4,6 +4,7 @@
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import fastifyWebsocket from '@fastify/websocket'
 import fastifyMultipart from '@fastify/multipart'
+import fastifyStatic from '@fastify/static'
 import type { WebSocket } from '@fastify/websocket'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -27,8 +28,13 @@ export interface Interaction {
 /**
  * 构建 Interaction:注册路由、设置缓存与广播,返回可 listen 的 app。
  * agentCtx 必须已就绪(由调用方在 listen 前通过 AgentHost 构建)。
+ * webDistPath 提供时,用 @fastify/static 同端口 serve 前端构建产物 + SPA fallback(ADR-0003 D2.1);
+ * 省略时保留 dev 占位(dev 形态前端走 vite proxy,零回归)。
  */
-export async function createInteraction(agentCtx: AgentContext): Promise<Interaction> {
+export async function createInteraction(
+  agentCtx: AgentContext,
+  webDistPath?: string,
+): Promise<Interaction> {
   // vaultRoot = kb/ 的父级,buildView/rawDir 的基准(随 Vault 切换)。
   const vaultRoot = path.dirname(agentCtx.kbRoot)
 
@@ -270,13 +276,31 @@ export async function createInteraction(agentCtx: AgentContext): Promise<Interac
     })
   })
 
-  // 生产环境托管前端构建产物(@fastify/static)将在打包阶段加入;
-  // dev 时前端走自己的 vite 端口,通过 vite proxy 转发 /api 与 /ws 到本服务。
-  app.get('/', async (_req, reply) =>
-    reply
-      .type('text/plain')
-      .send('z-wiki server. 开发模式请访问 vite dev server;前端构建产物托管待打包阶段接入。'),
-  )
+  // 前端静态资源托管(ADR-0003 D2.1):prod/桌面形态同端口 serve web/dist,
+  // SPA + API 同源,前端相对路径 fetch 零改造。dev 形态(webDistPath 省略)走 vite proxy。
+  if (webDistPath) {
+    await app.register(fastifyStatic, {
+      root: webDistPath,
+      prefix: '/',
+      decorateReply: true,
+    })
+    // SPA fallback:非 /api 的 GET 请求(如 /pages/:stem)回退到 index.html,交给前端路由。
+    // /api/* 仍走 JSON 404,不被吞成 index.html。
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === 'GET' && !req.url.startsWith('/api/') && !req.url.startsWith('/ws')) {
+        return reply.sendFile('index.html')
+      }
+      return reply.code(404).send({ error: 'not found' })
+    })
+  } else {
+    app.get('/', async (_req, reply) =>
+      reply
+        .type('text/plain')
+        .send(
+          'z-wiki server. 开发模式请访问 vite dev server;prod 形态由 desktop 主进程传入 webDistPath 托管。',
+        ),
+    )
+  }
 
   return {
     app,
