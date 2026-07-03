@@ -1,6 +1,6 @@
 // firstRun.ts — 首次启动初始化(ADR-0003 D3/D4)。
 // 检测 UserDataDir 空(config.json 不存在)→ 从 bundle kb_example 复制首个 Vault →
-// 写初始 config.json(currentVault + 默认 provider/model + 空 apiKey)。
+// 写初始 config.json(currentVault + 空壳 LLM 配置,ADR-0004 D6)。
 // 纯函数为主(可单测);ensureFirstRun 编排,由 main.ts 调。
 import { cpSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -24,19 +24,23 @@ export function copyKbExample(src: string, dest: string): void {
   cpSync(src, dest, { recursive: true })
 }
 
-/** 初始 config.json 内容(ADR-0003 D3.1 + handoff 决策 4):默认 ark/空 apiKey + 单 Vault。 */
+/** 初始 config.json 内容(ADR-0003 D3.1 + ADR-0004 D1/D6):空壳 LLM 配置 + 单 Vault。 */
 export function initialConfig(kbRoot: string): {
   apiKey: string
-  provider: string
+  baseUrl: string
+  api: string
   model: string
+  exposedApiSpecs: string[]
   vaults: Array<{ path: string; name: string }>
   currentVault: string
   preferences: Record<string, unknown>
 } {
   return {
     apiKey: '',
-    provider: 'ark',
-    model: 'ark-code-latest',
+    baseUrl: '',
+    api: 'openai-completions',
+    model: '',
+    exposedApiSpecs: ['openai-completions', 'anthropic-messages'],
     vaults: [{ path: kbRoot, name: '默认' }],
     currentVault: kbRoot,
     preferences: {},

@@ -13,7 +13,12 @@ async function withConfig(initial: Record<string, unknown>): Promise<string> {
 }
 
 test('saveWindowBounds → loadWindowBounds: roundtrip 读回所写尺寸/位置', async () => {
-  const cfgPath = await withConfig({ apiKey: 'k', provider: 'ark', model: 'm' })
+  const cfgPath = await withConfig({
+    apiKey: 'k',
+    baseUrl: '',
+    api: 'openai-completions',
+    model: 'm',
+  })
   try {
     saveWindowBounds(cfgPath, { x: 10, y: 20, width: 800, height: 600, maximized: false })
     const loaded = loadWindowBounds(cfgPath)
@@ -26,15 +31,17 @@ test('saveWindowBounds → loadWindowBounds: roundtrip 读回所写尺寸/位置
 test('saveWindowBounds: 保留 config.json 其他字段(不丢 apiKey)', async () => {
   const cfgPath = await withConfig({
     apiKey: 'secret-key',
-    provider: 'ark',
-    model: 'ark-code-latest',
+    baseUrl: 'https://h/v1',
+    api: 'openai-completions',
+    model: 'gpt-4o',
   })
   try {
     saveWindowBounds(cfgPath, { x: 0, y: 0, width: 1280, height: 800 })
     const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as Record<string, unknown>
     assert.equal(cfg.apiKey, 'secret-key', 'apiKey 必须保留')
-    assert.equal(cfg.provider, 'ark')
-    assert.equal(cfg.model, 'ark-code-latest')
+    assert.equal(cfg.baseUrl, 'https://h/v1')
+    assert.equal(cfg.api, 'openai-completions')
+    assert.equal(cfg.model, 'gpt-4o')
     assert.deepEqual(cfg.preferences, {
       windowBounds: { x: 0, y: 0, width: 1280, height: 800 },
     })
@@ -67,7 +74,12 @@ test('saveWindowBounds: 不覆盖已有 preferences 兄弟字段', async () => {
 })
 
 test('loadWindowBounds: config.json 无 preferences → 返回 null(用默认尺寸)', async () => {
-  const cfgPath = await withConfig({ apiKey: 'k', provider: 'ark', model: 'm' })
+  const cfgPath = await withConfig({
+    apiKey: 'k',
+    baseUrl: '',
+    api: 'openai-completions',
+    model: 'm',
+  })
   try {
     assert.equal(loadWindowBounds(cfgPath), null)
   } finally {

@@ -56,11 +56,13 @@ test('isFirstRun: config.json 不存在 → true;存在 → false', async () => 
   }
 })
 
-test('initialConfig: 默认 ark + 空 apiKey + currentVault 指向 kbRoot', () => {
+test('initialConfig: 空壳 LLM 配置(ADR-0004 D6)+ currentVault 指向 kbRoot', () => {
   const cfg = initialConfig('/data/kb')
-  assert.equal(cfg.provider, 'ark')
-  assert.equal(cfg.model, 'ark-code-latest')
   assert.equal(cfg.apiKey, '')
+  assert.equal(cfg.baseUrl, '')
+  assert.equal(cfg.api, 'openai-completions')
+  assert.equal(cfg.model, '')
+  assert.deepEqual(cfg.exposedApiSpecs, ['openai-completions', 'anthropic-messages'])
   assert.equal(cfg.currentVault, '/data/kb')
   assert.deepEqual(cfg.vaults, [{ path: '/data/kb', name: '默认' }])
   assert.deepEqual(cfg.preferences, {})
@@ -97,8 +99,8 @@ test('writeInitialConfig: 原子写 config.json,内容可被 readConfig 接受',
   try {
     writeInitialConfig(paths.configPath, paths.kbRoot)
     const cfg = JSON.parse(await fs.readFile(paths.configPath, 'utf-8')) as Record<string, unknown>
-    assert.equal(cfg.provider, 'ark')
-    assert.equal(cfg.model, 'ark-code-latest')
+    assert.equal(cfg.api, 'openai-completions')
+    assert.equal(cfg.model, '')
     assert.equal(cfg.apiKey, '')
     assert.equal(cfg.currentVault, paths.kbRoot)
     // tmp 文件不应残留(原子写 rename 后清理)

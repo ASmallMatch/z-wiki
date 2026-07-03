@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 
 /* ═══════════════════════════════════════════════════
-   Settings — 设置页:API key 配置 + Vault 切换/新建
-   ADR-0003 D4(多 Vault)/ D5(ingest 中禁切)/ D7(切库闭环)/ D3.1(config.json 真相源)
+   Settings — 设置页:LLM 配置(api 规范/baseUrl/model/apiKey)+ Vault 切换/新建
+   ADR-0004 D1/D2/D5/D7(冷重载)+ ADR-0003 D4(多 Vault)/ D5(ingest 中禁切)/ D7(切库闭环)
+   "返回首页"由 Header 齿轮 toggle 承担(不再在此放返回按钮)
    ═══════════════════════════════════════════════════ */
 
 interface VaultEntry {
@@ -11,37 +11,56 @@ interface VaultEntry {
   name?: string
 }
 
+interface ApiSpecEntry {
+  id: string
+  label: string
+  suffix: string
+}
+
 interface ConfigStatus {
-  provider: string
+  baseUrl: string
+  api: string
   model: string
   hasApiKey: boolean
+  exposedApiSpecs: string[]
 }
 
 export default function Settings() {
   const [vaults, setVaults] = useState<VaultEntry[]>([])
   const [currentVault, setCurrentVault] = useState('')
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null)
+  const [specs, setSpecs] = useState<ApiSpecEntry[]>([])
   const [ingestActive, setIngestActive] = useState(false)
 
+  // LLM 配置 form:从 /api/config/status 回填,保存时 POST /api/config/llm
+  const [apiInput, setApiInput] = useState('openai-completions')
+  const [baseUrlInput, setBaseUrlInput] = useState('')
+  const [modelInput, setModelInput] = useState('')
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [newVaultName, setNewVaultName] = useState('')
-  const [savingKey, setSavingKey] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const [vaultsRes, statusRes, activeRes] = await Promise.all([
+      const [vaultsRes, statusRes, activeRes, specsRes] = await Promise.all([
         fetch('/api/vaults'),
         fetch('/api/config/status'),
         fetch('/api/ingest/active'),
+        fetch('/api/specs'),
       ])
       const vdata = (await vaultsRes.json()) as { vaults: VaultEntry[]; currentVault: string }
       setVaults(vdata.vaults ?? [])
       setCurrentVault(vdata.currentVault ?? '')
-      setConfigStatus((await statusRes.json()) as ConfigStatus)
+      const status = (await statusRes.json()) as ConfigStatus
+      setConfigStatus(status)
+      setApiInput(status.api || 'openai-completions')
+      setBaseUrlInput(status.baseUrl || '')
+      setModelInput(status.model || '')
       setIngestActive(((await activeRes.json()) as { active: boolean }).active ?? false)
+      setSpecs(((await specsRes.json()) as { specs: ApiSpecEntry[] }).specs ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
@@ -61,30 +80,33 @@ export default function Settings() {
     return () => window.removeEventListener('ingest-state', handler)
   }, [])
 
-  const saveApiKey = async () => {
-    const trimmed = apiKeyInput.trim()
-    if (!trimmed) return
-    setSavingKey(true)
+  const saveLlm = async () => {
+    setSaving(true)
     setError(null)
     setNotice(null)
     try {
-      const res = await fetch('/api/config/apikey', {
-        method: 'PUT',
+      const res = await fetch('/api/config/llm', {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ apiKey: trimmed }),
+        body: JSON.stringify({
+          api: apiInput,
+          baseUrl: baseUrlInput,
+          model: modelInput,
+          apiKey: apiKeyInput,
+        }),
       })
       if (!res.ok) {
         const data = (await res.json()) as { error?: string }
         setError(data.error ?? `HTTP ${res.status}`)
       } else {
-        setNotice('API key 已保存并生效')
+        setNotice('配置已重载,可继续对话')
         setApiKeyInput('')
         void load()
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
-      setSavingKey(false)
+      setSaving(false)
     }
   }
 
@@ -107,8 +129,6 @@ export default function Settings() {
         setError(data.error ?? `HTTP ${res.status}`)
       } else {
         setNotice('已切换知识库,正在重连…')
-        // vault_changed → useChat 清空消息重连 + useData 重拉 pages
-        // 切库后回到首页(旧文章 stem 在新库可能不存在)
         setTimeout(() => {
           window.location.href = '/'
         }, 500)
@@ -147,38 +167,82 @@ export default function Settings() {
     }
   }
 
+  // 保存按钮:apiKey/baseUrl/model 任一空则禁用(Q4.1d:UI 提前拦)
+  const canSaveLlm = saving || !apiKeyInput.trim() || !baseUrlInput.trim() || !modelInput.trim()
+
   return (
     <div className="settings">
       <div className="settings-inner">
         <div className="settings-header">
           <h1 className="settings-title">设置</h1>
-          <Link to="/" className="settings-back">
-            返回首页
-          </Link>
         </div>
 
         {error && <div className="settings-error">{error}</div>}
         {notice && <div className="settings-notice">{notice}</div>}
 
-        {/* ── API key ── */}
+        {/* ── LLM 配置 ── */}
         <section className="settings-section">
-          <h2 className="settings-section-title">Ark API Key</h2>
+          <h2 className="settings-section-title">LLM 配置</h2>
           <p className="settings-hint">
             {configStatus?.hasApiKey
-              ? '当前已配置 API key(出于安全不回显明文,可直接覆盖更新)。'
-              : '尚未配置 API key,agent 调用将不可用。请填入后保存。'}
+              ? '当前已配置 API key(出于安全不回显明文,每次保存需重新填入)。'
+              : '尚未配置 API key,请填入以下字段后保存。'}
           </p>
-          {configStatus && (
-            <p className="settings-meta">
-              provider <code>{configStatus.provider}</code> · model{' '}
-              <code>{configStatus.model}</code>
-            </p>
-          )}
+
+          {/* api 规范 dropdown + tooltip */}
+          <div className="settings-row">
+            <label className="settings-label" htmlFor="llm-api">
+              API 规范
+            </label>
+            <select
+              id="llm-api"
+              className="settings-input"
+              value={apiInput}
+              onChange={(e) => setApiInput(e.target.value)}
+            >
+              {specs.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <span
+              className="settings-tooltip"
+              role="img"
+              aria-label="仅展示常用规范。需用 bedrock/google-vertex 等?编辑 config.json 的 exposedApiSpecs 字段,可选值见 pi KnownApi。"
+              title="仅展示常用规范。需用 bedrock/google-vertex 等?编辑 config.json 的 exposedApiSpecs 字段,可选值见 pi KnownApi。"
+            >
+              ⓘ
+            </span>
+          </div>
+
+          <div className="settings-row">
+            <input
+              className="settings-input"
+              type="text"
+              placeholder="baseUrl(如 https://api.openai.com/v1,无需 /chat/completions)"
+              value={baseUrlInput}
+              onChange={(e) => setBaseUrlInput(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="settings-row">
+            <input
+              className="settings-input"
+              type="text"
+              placeholder="model(如 gpt-4o)"
+              value={modelInput}
+              onChange={(e) => setModelInput(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
           <div className="settings-row">
             <input
               className="settings-input"
               type="password"
-              placeholder="填入 Ark API key"
+              placeholder="apiKey"
               value={apiKeyInput}
               onChange={(e) => setApiKeyInput(e.target.value)}
               autoComplete="off"
@@ -186,10 +250,10 @@ export default function Settings() {
             <button
               type="button"
               className="settings-btn primary"
-              onClick={() => void saveApiKey()}
-              disabled={savingKey || !apiKeyInput.trim()}
+              onClick={() => void saveLlm()}
+              disabled={canSaveLlm}
             >
-              {savingKey ? '保存中…' : '保存'}
+              {saving ? '保存中…' : '保存并重载'}
             </button>
           </div>
         </section>

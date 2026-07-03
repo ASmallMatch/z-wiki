@@ -28,7 +28,7 @@ export function loadWindowBounds(configPath: string): WindowBounds | null {
 
 /**
  * 保存窗口状态到 config.json 的 preferences.windowBounds。
- * 读-改-写保留其他字段(apiKey/provider/model/vaults);原子写避免崩溃损坏。
+ * 读-改-写保留其他字段(apiKey/baseUrl/api/model/vaults);原子写避免崩溃损坏。
  */
 export function saveWindowBounds(configPath: string, bounds: WindowBounds): void {
   let cfg: Record<string, unknown> = {}

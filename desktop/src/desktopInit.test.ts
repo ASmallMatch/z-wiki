@@ -71,10 +71,10 @@ test('桌面首次启动:空 UserDataDir → 首个 Vault + rg/fd + config.json 
     assert.ok(existsSync(path.join(paths.binDir, fdName)), 'fd 已铺放')
     assert.ok(existsSync(path.join(paths.binDir, '.version.json')), '版本文件已写')
 
-    // config.json 写入(空 apiKey + 默认 provider/model + currentVault)
+    // config.json 写入(空壳 LLM 配置 + currentVault,ADR-0004 D6)
     const cfg = JSON.parse(await fs.readFile(paths.configPath, 'utf-8')) as Record<string, unknown>
-    assert.equal(cfg.provider, 'ark')
-    assert.equal(cfg.model, 'ark-code-latest')
+    assert.equal(cfg.api, 'openai-completions')
+    assert.equal(cfg.model, '')
     assert.equal(cfg.apiKey, '')
     assert.equal(cfg.currentVault, paths.kbRoot)
 
