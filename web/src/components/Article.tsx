@@ -18,13 +18,15 @@ function initArticleHeadings(container: HTMLElement, onActive: (id: string) => v
   const headings = container.querySelectorAll<HTMLElement>('h2, h3')
   if (!headings.length) return
 
-  headings.forEach((h, i) => { h.id = `s-${i}` })
+  headings.forEach((h, i) => {
+    h.id = `s-${i}`
+  })
 
   // 追踪所有 heading 的实时相交状态
   const state = new Map<string, boolean>()
 
   const observer = new IntersectionObserver(
-    entries => {
+    (entries) => {
       for (const entry of entries) {
         state.set(entry.target.id, entry.isIntersecting)
       }
@@ -44,10 +46,13 @@ function initArticleHeadings(container: HTMLElement, onActive: (id: string) => v
       }
       if (bestId) onActive(bestId)
     },
-    { rootMargin: '-80px 0px 0px 0px' }
+    { rootMargin: '-80px 0px 0px 0px' },
   )
-  headings.forEach(h => observer.observe(h))
-  return () => { observer.disconnect(); state.clear() }
+  headings.forEach((h) => observer.observe(h))
+  return () => {
+    observer.disconnect()
+    state.clear()
+  }
 }
 
 export default function Article({ pages }: ArticleProps) {
@@ -57,7 +62,7 @@ export default function Article({ pages }: ArticleProps) {
   const [showToc, setShowToc] = useState(false)
   const cleanupRef = useRef<(() => void) | null>(null)
 
-  const page = pages.find(p => p.stem === stem)
+  const page = pages.find((p) => p.stem === stem)
   const toc = page?.toc ?? []
 
   // Callback ref + MutationObserver: 不管内容何时注入（客户端导航 / 硬刷新 / 异步加载），
@@ -94,7 +99,7 @@ export default function Article({ pages }: ArticleProps) {
     if (!content) return
     const container = document.querySelector('.article-main')
     if (!container) return
-    container.querySelectorAll('pre code[class*="language-"]').forEach(block => {
+    container.querySelectorAll('pre code[class*="language-"]').forEach((block) => {
       hljs.highlightElement(block as HTMLElement)
     })
   }, [content])
@@ -142,7 +147,7 @@ export default function Article({ pages }: ArticleProps) {
     }
   }, [activeId])
 
-  const pageIndex = pages.findIndex(p => p.stem === stem)
+  const pageIndex = pages.findIndex((p) => p.stem === stem)
   const prevPage = pages[pageIndex - 1]
   const nextPage = pages[pageIndex + 1]
 
@@ -159,7 +164,9 @@ export default function Article({ pages }: ArticleProps) {
     return (
       <div className="empty-state">
         <p>页面不存在</p>
-        <Link to="/" className="back-link">返回首页</Link>
+        <Link to="/" className="back-link">
+          返回首页
+        </Link>
       </div>
     )
   }
@@ -175,7 +182,7 @@ export default function Article({ pages }: ArticleProps) {
                 key={i}
                 href={`#s-${i}`}
                 className={`toc-link ${item.level === 'h3' ? 'toc-h3' : ''} ${activeId === `s-${i}` ? 'active' : ''}`}
-                onClick={e => {
+                onClick={(e) => {
                   e.preventDefault()
                   document.getElementById(`s-${i}`)?.scrollIntoView({ behavior: 'smooth' })
                 }}
@@ -209,12 +216,17 @@ export default function Article({ pages }: ArticleProps) {
       </main>
 
       {/* TOC toggle for mobile */}
-      <button
-        className="toc-toggle"
-        onClick={() => setShowToc(v => !v)}
-        aria-label="切换目录"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <button className="toc-toggle" onClick={() => setShowToc((v) => !v)} aria-label="切换目录">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <line x1="3" y1="6" x2="21" y2="6" />
           <line x1="3" y1="12" x2="21" y2="12" />
           <line x1="3" y1="18" x2="21" y2="18" />

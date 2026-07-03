@@ -5,19 +5,19 @@
 // (toISOString().slice(0,10)),同日编辑会使索引序列化不变,漏判。
 // pages 的 title/summary/toc 都是 fragment 内容的派生,fragment 不变则它们不
 // 变;对比 fragments 逐项内容,充分且正确。
-import type { PageMeta } from "./buildView.js";
+import type { PageMeta } from './buildView.js'
 
 export function hasIndexChanged(
   oldFragments: Map<string, string> | null,
-  newFragments: Map<string, string>
+  newFragments: Map<string, string>,
 ): boolean {
-  if (!oldFragments) return true;
-  if (oldFragments.size !== newFragments.size) return true;
+  if (!oldFragments) return true
+  if (oldFragments.size !== newFragments.size) return true
   for (const [stem, html] of newFragments) {
-    if (oldFragments.get(stem) !== html) return true;
+    if (oldFragments.get(stem) !== html) return true
   }
-  return false;
+  return false
 }
 
 // 仅用于测试引用 PageMeta 类型,避免未使用告警。
-export type { PageMeta };
+export type { PageMeta }

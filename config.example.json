@@ -1,0 +1,10 @@
+{
+  "apiKey": "",
+  "baseUrl": "",
+  "api": "openai-completions",
+  "model": "",
+  "exposedApiSpecs": ["openai-completions", "anthropic-messages"],
+  "vaults": [],
+  "currentVault": "",
+  "preferences": {}
+}

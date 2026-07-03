@@ -23,9 +23,12 @@ export default function Home({ pages }: HomeProps) {
   }, [])
 
   // 稳定引用：避免每次渲染新建函数导致 BookShelf3D 的 WebGL effect 重建场景/重播入场
-  const onBookClick = useCallback((stem: string) => {
-    navigate(`/pages/${stem}`)
-  }, [navigate])
+  const onBookClick = useCallback(
+    (stem: string) => {
+      navigate(`/pages/${stem}`)
+    },
+    [navigate],
+  )
 
   const toggleDrawer = useCallback(() => {
     setDrawerOpen((prev) => !prev)
@@ -80,10 +83,7 @@ export default function Home({ pages }: HomeProps) {
       </section>
 
       <div className="home-shelf-area">
-        <BookShelf3D
-          pages={pages}
-          onBookClick={onBookClick}
-        />
+        <BookShelf3D pages={pages} onBookClick={onBookClick} />
         <BottomDrawer
           pages={pages}
           isOpen={drawerOpen}

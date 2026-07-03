@@ -21,16 +21,16 @@ export function usePages() {
 
   const load = useCallback(() => {
     fetch('/api/pages')
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
       })
-      .then(data => {
+      .then((data) => {
         setPages(data as PageMeta[])
         setLoading(false)
         setError(null)
       })
-      .catch(err => {
+      .catch((err) => {
         setError(err.message)
         setLoading(false)
       })
@@ -58,11 +58,11 @@ export function usePageContent(stem: string | undefined) {
     }
     setLoading(true)
     fetch(`/api/pages/${stem}`)
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.text()
       })
-      .then(html => {
+      .then((html) => {
         setContent(html)
         setLoading(false)
       })

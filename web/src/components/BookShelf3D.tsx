@@ -21,30 +21,30 @@ const BOOK_H = 2.7
 const BOOK_D = 0.55
 const ROUND_R = 0.08
 const ROUND_S = 4
-const SLOT_COUNT = 17                       // 总槽位数：可见 13（slotIndex∈[-6,6]）+ 每侧缓冲 2（±7、±8）。N>slots 时 virtual 启用 reflow 无缝换皮
-const RADIUS = 28                           // 轴半径（增大→浅弧一字排开；17 槽下加大以填满屏宽并维持更浅弧度）
-const ANGLE_STEP = 0.05                     // 每槽位基础角度（入场后随 spreadP 放大到 1.2x）
-const FOCAL_Z = 3.0                         // 抽出本沿径向前移（z = RADIUS + FOCAL_Z = 31；相机 z=35，距相机 4 完整可见；与待机书落差 4 保留前突纵深）
-const CURRENT_SCALE = 1.15                  // 抽出本缩放放大（随 select lerp，用尺寸补强被削弱的纵深演出）
-const SELECT_LERP = 0.30                    // select 独立 lerp 系数（快于姿态 0.1）：快速滑动中 currentSlot 切换快，select 须尽快爬到 1 才能让纵深/缩放/光泽/翻面演出立起来
-const CURRENT_TILT_X = -0.5                 // 抽出本绕 X 轴后仰（顶部远离相机，书口顶角朝上远）
-const CURRENT_TILT_Z = 0.35                 // 抽出本绕 Z 轴侧倾（书脊侧角着地、书口顶角朝上）
-const RETREAT_Z = -1                        // 其余书远离并稳定停在此 z（z = RADIUS + RETREAT_Z = 27；与抽出本落差 FOCAL_Z-RETREAT_Z=4）
-const FAN_TILT = 0.03                       // 远离时绕 y 微旋系数：左侧顺时针、右侧逆时针，呈捧中间姿态
-const SPREAD_MAX = 0.2                      // 间距倍率上浮（effectiveStep = ANGLE_STEP*(1+SPREAD_MAX*spreadP)，最大 1.2x）
-const LIFT_FROM_Y = -4                      // 入场起点 y
+const SLOT_COUNT = 17 // 总槽位数：可见 13（slotIndex∈[-6,6]）+ 每侧缓冲 2（±7、±8）。N>slots 时 virtual 启用 reflow 无缝换皮
+const RADIUS = 28 // 轴半径（增大→浅弧一字排开；17 槽下加大以填满屏宽并维持更浅弧度）
+const ANGLE_STEP = 0.05 // 每槽位基础角度（入场后随 spreadP 放大到 1.2x）
+const FOCAL_Z = 3.0 // 抽出本沿径向前移（z = RADIUS + FOCAL_Z = 31；相机 z=35，距相机 4 完整可见；与待机书落差 4 保留前突纵深）
+const CURRENT_SCALE = 1.15 // 抽出本缩放放大（随 select lerp，用尺寸补强被削弱的纵深演出）
+const SELECT_LERP = 0.3 // select 独立 lerp 系数（快于姿态 0.1）：快速滑动中 currentSlot 切换快，select 须尽快爬到 1 才能让纵深/缩放/光泽/翻面演出立起来
+const CURRENT_TILT_X = -0.5 // 抽出本绕 X 轴后仰（顶部远离相机，书口顶角朝上远）
+const CURRENT_TILT_Z = 0.35 // 抽出本绕 Z 轴侧倾（书脊侧角着地、书口顶角朝上）
+const RETREAT_Z = -1 // 其余书远离并稳定停在此 z（z = RADIUS + RETREAT_Z = 27；与抽出本落差 FOCAL_Z-RETREAT_Z=4）
+const FAN_TILT = 0.03 // 远离时绕 y 微旋系数：左侧顺时针、右侧逆时针，呈捧中间姿态
+const SPREAD_MAX = 0.2 // 间距倍率上浮（effectiveStep = ANGLE_STEP*(1+SPREAD_MAX*spreadP)，最大 1.2x）
+const LIFT_FROM_Y = -4 // 入场起点 y
 const HOVER_LOST_THRESHOLD = 5
-const TAU = Math.PI * 2                       // 单本书回弹对齐用：吸到 2π 整数倍视觉等同正中
-const SOLO_DRAG_CLAMP = 0.025                   // 单本书拖拽 rot 1:1 跟手范围（弧度）：在此范围内跟手，超出走橡皮筋渐近线
-const SOLO_PIXEL_TO_ANGLE = 0.004               // 单本书像素→弧度（比滑轨 0.012 慢 3 倍）：拖动轻微、松手回弹
-const SOLO_MAX_ROT = 0.05                       // 单本书橡皮筋渐近上限（弧度，约 2.8°）：轻微挪动，取 min(soloMaxRot) 防窄屏出屏
+const TAU = Math.PI * 2 // 单本书回弹对齐用：吸到 2π 整数倍视觉等同正中
+const SOLO_DRAG_CLAMP = 0.025 // 单本书拖拽 rot 1:1 跟手范围（弧度）：在此范围内跟手，超出走橡皮筋渐近线
+const SOLO_PIXEL_TO_ANGLE = 0.004 // 单本书像素→弧度（比滑轨 0.012 慢 3 倍）：拖动轻微、松手回弹
+const SOLO_MAX_ROT = 0.05 // 单本书橡皮筋渐近上限（弧度，约 2.8°）：轻微挪动，取 min(soloMaxRot) 防窄屏出屏
 // ---------- 拖拽惯性驱动 ----------
-const PIXEL_TO_ANGLE = 0.012                // 像素→弧度：拖拽 1:1 抓取灵敏度（现场调）
-const DRAG_FRICTION = 0.90                  // 惯性指数摩擦（/帧，dt*60 缩放）
-const VEL_SNAP_THRESHOLD = 0.4              // 角速度低于此值（弧度/秒）触发末端吸附
-const CLICK_MOVE_PX = 6                     // 位移阈值：小于此判定为点击而非拖拽
-const HIT_NDC_THRESHOLD = 0.06              // 屏幕投影命中阈值（ndc，约屏宽 6%）：点击点落在此半径内才算命中某书
-const HIT_NDC_THRESHOLD_CURRENT = 0.12      // 中心抽出本命中阈值：抽出本侧倾后仰致视觉中心偏离几何中心，放宽 2 倍保证好点中进详情
+const PIXEL_TO_ANGLE = 0.012 // 像素→弧度：拖拽 1:1 抓取灵敏度（现场调）
+const DRAG_FRICTION = 0.9 // 惯性指数摩擦（/帧，dt*60 缩放）
+const VEL_SNAP_THRESHOLD = 0.4 // 角速度低于此值（弧度/秒）触发末端吸附
+const CLICK_MOVE_PX = 6 // 位移阈值：小于此判定为点击而非拖拽
+const HIT_NDC_THRESHOLD = 0.06 // 屏幕投影命中阈值（ndc，约屏宽 6%）：点击点落在此半径内才算命中某书
+const HIT_NDC_THRESHOLD_CURRENT = 0.12 // 中心抽出本命中阈值：抽出本侧倾后仰致视觉中心偏离几何中心，放宽 2 倍保证好点中进详情
 
 // 固定色调（与全局温润深色主题协调）
 const PAPER_CREAM = '#e8ddd0'
@@ -81,7 +81,13 @@ function shadeColor(color: string, percent: number): string {
 // ---------- 封面纹理生成 ----------
 
 function makeCoverTexture(data: {
-  title: string; subtitle: string; accent: string; dark: string; paper: string; backText: string; meta: string
+  title: string
+  subtitle: string
+  accent: string
+  dark: string
+  paper: string
+  backText: string
+  meta: string
 }): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
   canvas.width = 512
@@ -94,7 +100,8 @@ function makeCoverTexture(data: {
 
   // 警示胶带
   ctx.save()
-  ctx.translate(0, 0); ctx.rotate(-0.12)
+  ctx.translate(0, 0)
+  ctx.rotate(-0.12)
   ctx.fillStyle = data.accent
   ctx.fillRect(-60, 180, 620, 28)
   ctx.fillStyle = '#000'
@@ -102,7 +109,8 @@ function makeCoverTexture(data: {
   ctx.textAlign = 'center'
   for (let i = 0; i < 6; i++) {
     ctx.save()
-    ctx.translate(80 + i * 100, 198); ctx.rotate(-0.05)
+    ctx.translate(80 + i * 100, 198)
+    ctx.rotate(-0.05)
     ctx.fillText('CAUTION', 0, 0)
     ctx.restore()
   }
@@ -177,10 +185,14 @@ function makeCoverTexture(data: {
 }
 
 function makeBackTexture(data: {
-  title: string; accent: string; backText: string; meta: string
+  title: string
+  accent: string
+  backText: string
+  meta: string
 }): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
-  canvas.width = 512; canvas.height = 700
+  canvas.width = 512
+  canvas.height = 700
   const ctx = ctx2d(canvas)
 
   ctx.fillStyle = '#0c0c12'
@@ -195,12 +207,17 @@ function makeBackTexture(data: {
   ctx.font = '26px sans-serif'
 
   // 自动换行
-  let line = '', y = 160
+  let line = '',
+    y = 160
   for (const ch of data.backText) {
     const test = line + ch
     if (ctx.measureText(test).width > 430 && line.length > 0) {
-      ctx.fillText(line, 40, y); line = ch; y += 44
-    } else { line = test }
+      ctx.fillText(line, 40, y)
+      line = ch
+      y += 44
+    } else {
+      line = test
+    }
   }
   ctx.fillText(line, 40, y)
 
@@ -216,9 +233,14 @@ function makeBackTexture(data: {
   return tex
 }
 
-function makeSpineTexture(data: { title: string; accent: string; meta: string }): THREE.CanvasTexture {
+function makeSpineTexture(data: {
+  title: string
+  accent: string
+  meta: string
+}): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
-  canvas.width = 128; canvas.height = 700
+  canvas.width = 128
+  canvas.height = 700
   const ctx = ctx2d(canvas)
 
   ctx.fillStyle = '#0f0f15'
@@ -226,8 +248,10 @@ function makeSpineTexture(data: { title: string; accent: string; meta: string })
   ctx.strokeStyle = 'rgba(255,255,255,0.15)'
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.moveTo(16, 0); ctx.lineTo(16, 700)
-  ctx.moveTo(112, 0); ctx.lineTo(112, 700)
+  ctx.moveTo(16, 0)
+  ctx.lineTo(16, 700)
+  ctx.moveTo(112, 0)
+  ctx.lineTo(112, 700)
   ctx.stroke()
 
   const grd = ctx.createLinearGradient(0, 0, 128, 0)
@@ -239,7 +263,8 @@ function makeSpineTexture(data: { title: string; accent: string; meta: string })
 
   // 竖排书名
   ctx.save()
-  ctx.translate(64, 360); ctx.rotate(-Math.PI / 2)
+  ctx.translate(64, 360)
+  ctx.rotate(-Math.PI / 2)
   ctx.fillStyle = '#fff'
   ctx.font = 'bold 44px sans-serif'
   ctx.textAlign = 'center'
@@ -247,7 +272,8 @@ function makeSpineTexture(data: { title: string; accent: string; meta: string })
   ctx.restore()
 
   ctx.save()
-  ctx.translate(64, 620); ctx.rotate(-Math.PI / 2)
+  ctx.translate(64, 620)
+  ctx.rotate(-Math.PI / 2)
   ctx.fillStyle = data.accent
   ctx.font = 'bold 26px sans-serif'
   ctx.textAlign = 'center'
@@ -265,7 +291,8 @@ function makeSpineTexture(data: { title: string; accent: string; meta: string })
 
 function makeEdgeTexture(paper: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
-  canvas.width = 256; canvas.height = 700
+  canvas.width = 256
+  canvas.height = 700
   const ctx = ctx2d(canvas)
 
   const grd = ctx.createLinearGradient(0, 0, 256, 700)
@@ -301,7 +328,8 @@ function makeEdgeTexture(paper: string): THREE.CanvasTexture {
 
 function makeTopBottomTexture(paper: string, accent: string): THREE.CanvasTexture {
   const canvas = document.createElement('canvas')
-  canvas.width = 512; canvas.height = 256
+  canvas.width = 512
+  canvas.height = 256
   const ctx = ctx2d(canvas)
 
   const grd = ctx.createLinearGradient(0, 0, 512, 256)
@@ -380,15 +408,15 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
 
     // 按更新时间排序（最新的在前）
     const sorted = [...pages].sort(
-      (a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime()
+      (a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime(),
     )
     const N = sorted.length
     // slot0 钉中心，两侧对称；强制奇数以保证 slot0 存在且 slotIndex 为整数（偶数 N 时退一本）
     let slots = Math.min(SLOT_COUNT, N)
     if (slots % 2 === 0) slots -= 1
-    const half = (slots - 1) / 2                   // 半窗口（slotIndex 范围 -half..half）
-    const virtual = N > slots                      // 是否启用换皮虚拟化
-    const step = ANGLE_STEP                        // 槽位角步长（浅弧，非闭合圆）
+    const half = (slots - 1) / 2 // 半窗口（slotIndex 范围 -half..half）
+    const virtual = N > slots // 是否启用换皮虚拟化
+    const step = ANGLE_STEP // 槽位角步长（浅弧，非闭合圆）
 
     // ---------- 预生成纹理池（每本一套） ----------
     const skinPool: BookSkin[] = sorted.map((page) => {
@@ -429,7 +457,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       55,
       container.clientWidth / container.clientHeight,
       0.1,
-      100
+      100,
     )
     camera.position.set(0, 0, 35)
 
@@ -468,11 +496,16 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       coverMat: THREE.ShaderMaterial
       spineMat: THREE.MeshStandardMaterial
       backMat: THREE.MeshStandardMaterial
-      frontUniforms: { uTexture: THREE.IUniform; uMouse: THREE.IUniform; uTime: THREE.IUniform; uIntensity: THREE.IUniform }
-      slotIndex: number          // 当前圆柱槽位（可换皮后超出 -half..half）
-      dataIndex: number          // 绑定的数据索引
-      isCenter3: boolean         // 是否属于入场动作2 先升的中间3本（|slotIndex|<=1，换皮后不重算）
-      select: number             // 各自的抽出进度（isCurrent 时 lerp 向 1，否则 0；入场由 selectIntro 驱动）
+      frontUniforms: {
+        uTexture: THREE.IUniform
+        uMouse: THREE.IUniform
+        uTime: THREE.IUniform
+        uIntensity: THREE.IUniform
+      }
+      slotIndex: number // 当前圆柱槽位（可换皮后超出 -half..half）
+      dataIndex: number // 绑定的数据索引
+      isCenter3: boolean // 是否属于入场动作2 先升的中间3本（|slotIndex|<=1，换皮后不重算）
+      select: number // 各自的抽出进度（isCurrent 时 lerp 向 1，否则 0；入场由 selectIntro 驱动）
       stem: string
     }
 
@@ -526,7 +559,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
 
       bookGroup.scale.setScalar(1)
       bookGroup.position.set(Math.sin(a) * RADIUS, LIFT_FROM_Y, RADIUS)
-      bookGroup.rotation.y = a + Math.PI / 2          // 书脊朝镜头
+      bookGroup.rotation.y = a + Math.PI / 2 // 书脊朝镜头
 
       bookContainer.add(bookGroup)
 
@@ -552,8 +585,8 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     // ---------- 交互状态 ----------
     const mouse = new THREE.Vector2()
     const targetMouse = new THREE.Vector2()
-    let pointerInside = false                      // 指针是否在容器内（驱动 hover 光泽）
-    let orbiting = false                           // 轨道球自由旋转（中键/空格 toggle，仅中心抽出本）
+    let pointerInside = false // 指针是否在容器内（驱动 hover 光泽）
+    let orbiting = false // 轨道球自由旋转（中键/空格 toggle，仅中心抽出本）
     // 滑轨模型：rot.val（弧度）直接驱动所有书角度 a = slotIndex*effStep + rot.val。
     // currentSlot = round(-rot.val/effStep) 是当前正前方槽位（固定舞台），滑到中心的书做抽出动作。
     // 滑出可见窗口的书由 reflow 瞬移到另一端换皮（无限滑轨）。
@@ -565,32 +598,35 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     let introDone = false
     // 拖拽惯性：左键 1:1 抓取驱动 rot，松手后指数摩擦衰减，末端 snap 到最近槽
     let dragging = false
-    let dragStartX = 0                             // 按下时 clientX
-    let dragStartRot = 0                           // 按下时 rot.val
-    let dragMoved = false                          // 位移超阈值则非点击
-    let vel = 0                                    // 惯性角速度（弧度/秒）
-    let lastMoveX = 0                              // 最近一次 move 的 clientX（测松手速度）
+    let dragStartX = 0 // 按下时 clientX
+    let dragStartRot = 0 // 按下时 rot.val
+    let dragMoved = false // 位移超阈值则非点击
+    let vel = 0 // 惯性角速度（弧度/秒）
+    let lastMoveX = 0 // 最近一次 move 的 clientX（测松手速度）
     // 惯性初速采样：拖拽 move 期间记录近 100ms 的 (时间戳, 横向位移) 样本，
     // 松手取总和/时间跨度的平均速度，抗手抖（原单帧法手抖即丢惯性）
     const velSamples: { t: number; dx: number }[] = []
 
     // 四段式入场编排：由渲染循环读这些进度变量驱动姿态
-    const yLift3     = { val: 0 }   // 动作2 中间3本上升
-    const yLiftRest  = { val: 0 }   // 动作2 其余10本跟上
-    const selectIntro = { val: 0 }  // 动作4 中间本首演抽出进度（入场一次性，结束后=1）
-    const retreatP   = { val: 0 }   // 动作4 12本远离到 z=17
-    const spreadP    = { val: 0 }   // 动作4 12本远离时 1.2x 间距渐变
+    const yLift3 = { val: 0 } // 动作2 中间3本上升
+    const yLiftRest = { val: 0 } // 动作2 其余10本跟上
+    const selectIntro = { val: 0 } // 动作4 中间本首演抽出进度（入场一次性，结束后=1）
+    const retreatP = { val: 0 } // 动作4 12本远离到 z=17
+    const spreadP = { val: 0 } // 动作4 12本远离时 1.2x 间距渐变
     let introTl: gsap.core.Timeline | null = null
     introTl = gsap.timeline({
-      onComplete: () => { introDone = true; onIntroDoneRef.current?.() },
+      onComplete: () => {
+        introDone = true
+        onIntroDoneRef.current?.()
+      },
     })
     introTl
-      .to(yLift3,      { val: 1, duration: 0.35, ease: 'power2.out' })            // 中间3本上升
-      .to(yLiftRest,   { val: 1, duration: 0.3,  ease: 'power2.out' })            // 其余10本跟上
-      .to({}, { duration: 0.2 })                                                  // 停顿
-      .to(selectIntro, { val: 1, duration: 0.35, ease: 'power2.out' }, '+=0')     // 中间本抽出
-      .to(retreatP,    { val: 1, duration: 0.35, ease: 'power2.out' }, '<')       // 12本同步远离
-      .to(spreadP,     { val: 1, duration: 0.3,  ease: 'power2.out' })            // 1.2x 间距渐变
+      .to(yLift3, { val: 1, duration: 0.35, ease: 'power2.out' }) // 中间3本上升
+      .to(yLiftRest, { val: 1, duration: 0.3, ease: 'power2.out' }) // 其余10本跟上
+      .to({}, { duration: 0.2 }) // 停顿
+      .to(selectIntro, { val: 1, duration: 0.35, ease: 'power2.out' }, '+=0') // 中间本抽出
+      .to(retreatP, { val: 1, duration: 0.35, ease: 'power2.out' }, '<') // 12本同步远离
+      .to(spreadP, { val: 1, duration: 0.3, ease: 'power2.out' }) // 1.2x 间距渐变
 
     // ---------- 指针事件 ----------
     function mouseToNDC(e: PointerEvent) {
@@ -620,7 +656,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
         duration: 0.5,
         ease: 'back.out(1.4)',
         overwrite: 'auto',
-        onComplete: () => { snapping = false },
+        onComplete: () => {
+          snapping = false
+        },
       })
     }
 
@@ -640,7 +678,10 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     // 取最近且 ≤ 阈值。替代原 3D 命中球——球半径(2.3)≫书间距(1.4)致相邻球重叠，
     // 且抽出本前移 z 更大→distance 更小霸屏误进详情。屏幕投影与 z 无关，点哪是哪。
     const _projVec = new THREE.Vector3()
-    function nearestBookOnScreen(ndc: { x: number; y: number }): { book: BookSlot; dist: number } | null {
+    function nearestBookOnScreen(ndc: {
+      x: number
+      y: number
+    }): { book: BookSlot; dist: number } | null {
       let nearest: BookSlot | null = null
       let nearestDist = Infinity
       for (const book of allSlots) {
@@ -661,7 +702,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       const currentBook = slotMap.get(currentSlot)
       if (!currentBook) return false
       const hit = nearestBookOnScreen(ndc)
-      return hit !== null && hit.book.slotIndex === currentSlot && hit.dist <= HIT_NDC_THRESHOLD_CURRENT
+      return (
+        hit !== null && hit.book.slotIndex === currentSlot && hit.dist <= HIT_NDC_THRESHOLD_CURRENT
+      )
     }
 
     // 命中任意一本书（最近且在阈值内），用于点击滑轨上任意书触发演出。
@@ -669,7 +712,8 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     function hitAnyBook(ndc: { x: number; y: number }): BookSlot | null {
       const hit = nearestBookOnScreen(ndc)
       if (!hit) return null
-      const threshold = hit.book.slotIndex === currentSlot ? HIT_NDC_THRESHOLD_CURRENT : HIT_NDC_THRESHOLD
+      const threshold =
+        hit.book.slotIndex === currentSlot ? HIT_NDC_THRESHOLD_CURRENT : HIT_NDC_THRESHOLD
       return hit.dist <= threshold ? hit.book : null
     }
 
@@ -688,13 +732,18 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
         duration,
         ease: 'power3.out',
         overwrite: 'auto',
-        onComplete: () => { snapping = false },
+        onComplete: () => {
+          snapping = false
+        },
       })
     }
 
     // 进入轨道球：对齐 rot 到最近槽（稳定 currentSlot），清零惯性，避免旋转中 currentSlot 漂移
     function enterOrbit() {
-      if (snapping) { gsap.killTweensOf(rot); snapping = false }
+      if (snapping) {
+        gsap.killTweensOf(rot)
+        snapping = false
+      }
       vel = 0
       // 单本书同样对齐到 2π 整数倍，保证轨道球态书在正中
       if (slots <= 1) {
@@ -719,14 +768,17 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       targetMouse.x = ndc.x
       targetMouse.y = ndc.y
       if (!introDone) return
-      if (orbiting) return   // 轨道球中：鼠标位置由渲染循环驱动三轴旋转，不拖拽
+      if (orbiting) return // 轨道球中：鼠标位置由渲染循环驱动三轴旋转，不拖拽
       if (!dragging) return
       // 未超点击位移阈值：不动 rot，让进行中的点击演出继续（点击忽略原则）
       if (Math.abs(e.clientX - dragStartX) <= CLICK_MOVE_PX) return
       if (!dragMoved) {
         dragMoved = true
         // 超阈值才打断 snap/演出，并从当前 rot 位置接管，避免回退
-        if (snapping) { gsap.killTweensOf(rot); snapping = false }
+        if (snapping) {
+          gsap.killTweensOf(rot)
+          snapping = false
+        }
         dragStartRot = rot.val
         dragStartX = e.clientX
         lastMoveX = e.clientX
@@ -763,7 +815,10 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       // 中键：toggle 轨道球（仅当命中中心抽出本）
       if (e.button === 1) {
         e.preventDefault()
-        if (orbiting) { orbiting = false; return }
+        if (orbiting) {
+          orbiting = false
+          return
+        }
         const ndc = mouseToNDC(e)
         if (hitsCenterBook(ndc)) enterOrbit()
         return
@@ -771,9 +826,16 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       // 左键：若在轨道球态则拖拽自动退出轨道球。退出轨道球的这一次 down 不进入拖拽/点击
       // （否则无位移松手会命中中心本触发 onBookClick，把"退出轨道球"误变成"打开文章"）
       if (e.button === 0) {
-        if (orbiting) { orbiting = false; return }
+        if (orbiting) {
+          orbiting = false
+          return
+        }
         beginDrag(e.clientX)
-        try { container!.setPointerCapture(e.pointerId) } catch { /* pointer capture 失败可忽略 */ }
+        try {
+          container!.setPointerCapture(e.pointerId)
+        } catch {
+          /* pointer capture 失败可忽略 */
+        }
       }
     }
 
@@ -781,9 +843,16 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     // 点击判定与惯性初速计算需要完整 PointerEvent（clientX/clientY），留在 onPointerUp 处理
     function endDrag(pointerId: number, cancelled: boolean) {
       if (!dragging) return
-      try { container!.releasePointerCapture(pointerId) } catch { /* pointer capture 失败可忽略 */ }
+      try {
+        container!.releasePointerCapture(pointerId)
+      } catch {
+        /* pointer capture 失败可忽略 */
+      }
       dragging = false
-      if (cancelled) { vel = 0; snapToNearest() }
+      if (cancelled) {
+        vel = 0
+        snapToNearest()
+      }
     }
 
     function onPointerUp(e: PointerEvent) {
@@ -791,13 +860,20 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       if (e.button !== 0 || !dragging) return
       if (!dragMoved) {
         // 短按点击：释放 capture、退出拖拽态。须用真实 clientY 算 NDC，否则 ndc.y=NaN 命中失败
-        try { container!.releasePointerCapture(e.pointerId) } catch { /* pointer capture 失败可忽略 */ }
+        try {
+          container!.releasePointerCapture(e.pointerId)
+        } catch {
+          /* pointer capture 失败可忽略 */
+        }
         dragging = false
         // 点击演出进行中：忽略本次点击，让演出继续播完
         if (snapping) return
         const ndc = mouseToNDC(e)
         const hit = hitAnyBook(ndc)
-        if (!hit) { snapToNearest(); return }        // 点击空白：对齐到最近槽
+        if (!hit) {
+          snapToNearest()
+          return
+        } // 点击空白：对齐到最近槽
         if (hit.slotIndex === currentSlot) {
           // 已是中心抽出本：再点一次打开文章
           onBookClick(hit.stem)
@@ -821,7 +897,10 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       endDrag(e.pointerId, false)
       // 速度过小直接 snap，否则进入惯性衰减（由渲染循环处理）
       // 单本书无滑轨可滑，松手即弹回正中（跳过惯性，避免橡皮筋超出后惯性撞墙）
-      if (Math.abs(vel) < VEL_SNAP_THRESHOLD || slots <= 1) { vel = 0; snapToNearest() }
+      if (Math.abs(vel) < VEL_SNAP_THRESHOLD || slots <= 1) {
+        vel = 0
+        snapToNearest()
+      }
     }
 
     // pointercancel：触屏 pan-y 下手势被判为竖向滚动时浏览器发 cancel 而非 up，
@@ -857,7 +936,10 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       // 按住不放的自动重复事件不重复触发 toggle，避免轨道球态频闪
       if (e.repeat) return
       if (e.code === 'Escape') {
-        if (orbiting) { orbiting = false; e.preventDefault() }
+        if (orbiting) {
+          orbiting = false
+          e.preventDefault()
+        }
         return
       }
       if (e.code === 'Space') {
@@ -880,7 +962,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     window.addEventListener('keydown', onKeyDown)
 
     const io = new IntersectionObserver(
-      (entries) => { shelfVisible = entries[0]?.intersectionRatio >= 0.5 },
+      (entries) => {
+        shelfVisible = entries[0]?.intersectionRatio >= 0.5
+      },
       { threshold: [0, 0.5, 1] },
     )
     io.observe(container)
@@ -889,9 +973,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
     // 单本书拖拽不出屏的 rot 上限：抽出本 z=RADIUS+FOCAL_Z，按相机视口算可见半宽，
     // 减去书半宽得安全 x，再反推 rot。窄屏自动收紧，避免 sin(rot)*RADIUS 把书甩出屏
     function computeSoloMaxRot(): number {
-      const bookZ = RADIUS + FOCAL_Z             // select=1 时抽出本 z
+      const bookZ = RADIUS + FOCAL_Z // select=1 时抽出本 z
       const dist = camera.position.z - bookZ
-      const halfW = Math.tan((camera.fov * Math.PI / 180) / 2) * dist * camera.aspect
+      const halfW = Math.tan((camera.fov * Math.PI) / 180 / 2) * dist * camera.aspect
       const safeX = Math.max(0.5, halfW - (BOOK_W * CURRENT_SCALE) / 2)
       return Math.asin(Math.min(0.9, safeX / RADIUS))
     }
@@ -927,7 +1011,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
           moved = true
         }
         if (moved) {
-          const newDataIndex = ((book.dataIndex + dataOffset) % N + N) % N
+          const newDataIndex = (((book.dataIndex + dataOffset) % N) + N) % N
           applySkin(book, newDataIndex)
           slotMap.set(book.slotIndex, book)
           // 瞬移的书重置 select（屏外书非抽出态）
@@ -973,7 +1057,10 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
 
       // 惯性衰减：松手后按角速度累加 rot，指数摩擦，速度过低时 snap 到最近槽
       if (!dragging && !orbiting && vel !== 0) {
-        if (snapping) { gsap.killTweensOf(rot); snapping = false }
+        if (snapping) {
+          gsap.killTweensOf(rot)
+          snapping = false
+        }
         rot.val += vel * dt
         vel *= Math.pow(DRAG_FRICTION, dt * 60)
         if (Math.abs(vel) < VEL_SNAP_THRESHOLD) {
@@ -1025,7 +1112,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
         // select 用独立更快系数（SELECT_LERP），与姿态丝滑系数解耦——快速滑动中 currentSlot 切换快，
         // select 须尽快爬到 1，否则纵深/缩放/光泽/翻面演出全被压制成"浅浅动一下"
         const introCenter = !introDone && book.slotIndex === 0
-        const targetSelect = introCenter ? selectIntro.val : (isCurrent ? 1 : 0)
+        const targetSelect = introCenter ? selectIntro.val : isCurrent ? 1 : 0
         const selectSmooth = 1 - Math.pow(1 - SELECT_LERP, dt * 60)
         book.select += (targetSelect - book.select) * selectSmooth
 
@@ -1072,17 +1159,15 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
         // 光泽强度：抽出本即亮（解耦 hover——滑动中 dragging/vel 非 0 时 hover 闸门关闭，光泽本该灭；
         // 改为 isCurrent 持续亮，让"当前抽出本"始终有视觉标识）。hover 不再额外叠加
         const targetIntensity = isCurrent ? 0.25 : 0.0
-        book.frontUniforms.uIntensity.value += (targetIntensity - book.frontUniforms.uIntensity.value) * smooth
+        book.frontUniforms.uIntensity.value +=
+          (targetIntensity - book.frontUniforms.uIntensity.value) * smooth
 
         // 缩放：抽出本随 select 放大到 CURRENT_SCALE，用尺寸补强被削弱的纵深演出
         const targetScale = 1 + (CURRENT_SCALE - 1) * book.select
         const s = book.group.scale.x + (targetScale - book.group.scale.x) * smooth
         book.group.scale.setScalar(s)
         book.frontUniforms.uTime.value = elapsedTime
-        book.frontUniforms.uMouse.value.set(
-          (mouse.x + 1) * 0.5,
-          (mouse.y + 1) * 0.5,
-        )
+        book.frontUniforms.uMouse.value.set((mouse.x + 1) * 0.5, (mouse.y + 1) * 0.5)
       }
 
       renderer.render(scene, camera)
@@ -1111,12 +1196,12 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone }: BookShe
       sharedGeo.dispose()
       edgeTex.dispose()
       topBotTex.dispose()
-      skinPool.forEach(skin => {
+      skinPool.forEach((skin) => {
         skin.cover.dispose()
         skin.spine.dispose()
         skin.back.dispose()
       })
-      allSlots.forEach(book => {
+      allSlots.forEach((book) => {
         book.coverMat.dispose()
         book.spineMat.dispose()
         book.backMat.dispose()

@@ -5,18 +5,24 @@
   "type": "module",
   "workspaces": [
     "server",
-    "web"
+    "web",
+    "desktop"
   ],
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"tsx scripts/wait-port.ts 3000 && npm run dev -w web\"",
     "dev:server": "npm run dev -w server",
     "dev:web": "npm run dev -w web",
     "build": "npm run build -w web && npm run build -w server",
+    "desktop": "npm run build && npm run build -w @z-wiki/desktop && electron desktop",
     "health": "tsx scripts/healthCheck.ts",
-    "test": "tsx --test \"server/src/**/*.test.ts\"",
-    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.app.json --noEmit && tsc -p scripts/tsconfig.json --noEmit"
+    "test": "tsx --test \"server/src/**/*.test.ts\" \"desktop/src/**/*.test.ts\"",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.app.json --noEmit && tsc -p scripts/tsconfig.json --noEmit && tsc -p desktop/tsconfig.json --noEmit",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "format:check": "biome format"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.2",
     "concurrently": "^9.1.0",
     "tsx": "^4.19.0",
     "typescript": "~5.7.0"

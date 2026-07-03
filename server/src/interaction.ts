@@ -1,164 +1,207 @@
 // interaction.ts — Interaction 模块:外部接入 + 业务编排。
 // 通过 AgentHost 的窄 interface 碰 agent(pi SDK 封装),自身不知道 agent 内部。
 // 持有可视数据缓存,经 HTTP 暴露给 web;编排 upload→ingest、agent_end→rebuild 闭环。
-import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
-import fastifyWebsocket from "@fastify/websocket";
-import fastifyMultipart from "@fastify/multipart";
-import type { WebSocket } from "@fastify/websocket";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import fs from "node:fs/promises";
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
+import fastifyWebsocket from '@fastify/websocket'
+import fastifyMultipart from '@fastify/multipart'
+import fastifyStatic from '@fastify/static'
+import type { WebSocket } from '@fastify/websocket'
+import path from 'node:path'
+import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import {
+  applyModelToSessions,
   createChatSession,
   createIngestSession,
+  reloadAgentConfig,
   withFileLock,
   type AgentContext,
-} from "./agentHost.js";
-import { buildView, type PageMeta } from "./buildView.js";
-import { hasIndexChanged } from "./hasIndexChanged.js";
-import { rawDir } from "./kbLayout.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = path.resolve(__dirname, "../..");
+} from './agentHost.js'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
+import type { Api, Model } from '@earendil-works/pi-ai'
+import { buildView, type PageMeta } from './buildView.js'
+import { hasIndexChanged } from './hasIndexChanged.js'
+import { rawDir } from './kbLayout.js'
+import { API_SPECS } from './apiSpecs.js'
+import { readConfig, writeConfig, type VaultEntry } from './config.js'
 
 export interface Interaction {
-  app: FastifyInstance;
-  log: FastifyBaseLogger;
+  app: FastifyInstance
+  log: FastifyBaseLogger
   /** 初次构建填缓存,返回 pages 数量。 */
-  refreshView(): Promise<number>;
+  refreshView(): Promise<number>
+}
+
+/** createInteraction 选项:Vault 相关路径 + 前端静态资源。 */
+export interface CreateInteractionOptions {
+  /** 初始 Vault 的 kb/ 根(agent cwd + buildView 基准,切库时更新)。 */
+  kbRoot: string
+  /** web/dist 静态资源绝对路径;省略则不托管前端(dev 形态走 vite proxy)。 */
+  webDistPath?: string
+  /** bundle 内 kb_example 路径,新建 Vault 时复制;省略则 POST /api/vault 返回 503(dev 形态可不传)。 */
+  kbExamplePath?: string
 }
 
 /**
  * 构建 Interaction:注册路由、设置缓存与广播,返回可 listen 的 app。
  * agentCtx 必须已就绪(由调用方在 listen 前通过 AgentHost 构建)。
+ * webDistPath 提供时,用 @fastify/static 同端口 serve 前端构建产物 + SPA fallback(ADR-0003 D2.1);
+ * 省略时保留 dev 占位(dev 形态前端走 vite proxy,零回归)。
  */
-export async function createInteraction(agentCtx: AgentContext): Promise<Interaction> {
+export async function createInteraction(
+  agentCtx: AgentContext,
+  opts: CreateInteractionOptions,
+): Promise<Interaction> {
+  // 当前 Vault 的 kb/ 根:可变(切库时更新,D7)。createChatSession/createIngestSession/buildView 均从此派生,
+  // 不再读 agentCtx.kbRoot(已移除)——切库只换此值,agentContext 全局单例不重建。
+  let currentKbRoot = opts.kbRoot
+  const currentVaultRoot = () => path.dirname(currentKbRoot)
+  const configPath = path.join(agentCtx.appRoot, 'config.json')
+  const kbExamplePath = opts.kbExamplePath
+
   // 默认 debug:让事件流(app.log.debug "pi event")与请求日志在开发期都可见;
   // 生产可用 LOG_LEVEL=info 收敛。开发期用 pino-pretty 格式化输出。
-  const isDev = process.env.NODE_ENV !== "production";
+  const isDev = process.env.NODE_ENV !== 'production'
   const app = Fastify({
     logger: {
-      level: process.env.LOG_LEVEL ?? "debug",
+      level: process.env.LOG_LEVEL ?? 'debug',
       ...(isDev
-        ? { transport: { target: "pino-pretty", options: { translateTime: "HH:MM:ss", ignore: "pid,hostname", singleLine: true } } }
+        ? {
+            transport: {
+              target: 'pino-pretty',
+              options: { translateTime: 'HH:MM:ss', ignore: 'pid,hostname', singleLine: true },
+            },
+          }
         : {}),
     },
-  });
+  })
 
-  await app.register(fastifyWebsocket);
+  await app.register(fastifyWebsocket)
   await app.register(fastifyMultipart, {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  });
+  })
 
   // ── 可视数据缓存:buildView 纯函数结果,agent_end 后刷新,HTTP 端点读此 ──
-  let viewCache: { pages: PageMeta[]; fragments: Map<string, string> } | null = null;
+  let viewCache: { pages: PageMeta[]; fragments: Map<string, string> } | null = null
 
-  // ── 对话 WS 客户端集合:ingest 完成后向它们广播 ──────────────────
-  const chatClients = new Set<WebSocket>();
+  // ── 活跃 session 注册表(ADR-0004 D5:reload 后遍历 setModel)──────────────
+  // chatSessions:WS 连接 → 对话 session(断开即 dispose + delete)。
+  // ingestSessions:后台 ingest session(完成后 dispose + delete)。
+  // reload 配置时遍历两者 setModel,不丢对话上下文(pi setModel 不清 messages)。
+  const chatSessions = new Map<WebSocket, AgentSession>()
+  const ingestSessions = new Set<AgentSession>()
 
   function broadcast(msg: unknown): void {
-    const data = JSON.stringify(msg);
-    for (const c of chatClients) {
-      if (c.readyState === 1 /* OPEN */) c.send(data);
+    const data = JSON.stringify(msg)
+    for (const c of chatSessions.keys()) {
+      if (c.readyState === 1 /* OPEN */) c.send(data)
     }
   }
 
   // ── text_delta 攒批:模型 token 级流式太碎,按时间窗口合并后再推 WS ──
-  const FLUSH_MS = 50;
-  type DeltaBuf = { text: string; timer: NodeJS.Timeout | null };
+  const FLUSH_MS = 50
+  type DeltaBuf = { text: string; timer: NodeJS.Timeout | null }
   function getDeltaBuf(socket: WebSocket): DeltaBuf {
     // 挂在 socket 上,per-connection 隔离;类型用任意键绕过 WS 类型
-    const s = socket as WebSocket & { __deltaBuf?: DeltaBuf };
-    if (!s.__deltaBuf) s.__deltaBuf = { text: "", timer: null };
-    return s.__deltaBuf;
+    const s = socket as WebSocket & { __deltaBuf?: DeltaBuf }
+    if (!s.__deltaBuf) s.__deltaBuf = { text: '', timer: null }
+    return s.__deltaBuf
   }
   function flushDelta(socket: WebSocket): void {
-    const buf = getDeltaBuf(socket);
+    const buf = getDeltaBuf(socket)
     if (buf.timer) {
-      clearTimeout(buf.timer);
-      buf.timer = null;
+      clearTimeout(buf.timer)
+      buf.timer = null
     }
-    if (!buf.text) return;
-    const text = buf.text;
-    buf.text = "";
-    socket.send(JSON.stringify({ type: "text_delta", text }));
-    app.log.debug({ chars: text.length, text }, "text flushed");
+    if (!buf.text) return
+    const text = buf.text
+    buf.text = ''
+    socket.send(JSON.stringify({ type: 'text_delta', text }))
+    app.log.debug({ chars: text.length, text }, 'text flushed')
   }
 
   /** 将 pi 的 AgentSessionEvent 转成前端可消费的简化消息,推给 WS。 */
   function relayEvent(socket: WebSocket, event: unknown): void {
     const e = event as {
-      type: string;
-      assistantMessageEvent?: { type: string; delta?: string };
-      toolName?: string;
+      type: string
+      assistantMessageEvent?: { type: string; delta?: string }
+      toolName?: string
       // read 的 args 形如 { file_path, offset?, limit? };其它工具各异,统一序列化
-      args?: unknown;
-      isError?: boolean;
-    };
+      args?: unknown
+      isError?: boolean
+    }
     // text_delta 逐条太碎,攒批 flush 时由 flushDelta 打汇总日志
 
     switch (e.type) {
-      case "message_update": {
-        const ae = e.assistantMessageEvent;
-        if (ae?.type === "text_delta" && ae.delta) {
-          const buf = getDeltaBuf(socket);
-          buf.text += ae.delta;
+      case 'message_update': {
+        const ae = e.assistantMessageEvent
+        if (ae?.type === 'text_delta' && ae.delta) {
+          const buf = getDeltaBuf(socket)
+          buf.text += ae.delta
           // 已有定时器在跑就续用;否则开一个 50ms 窗口
           if (!buf.timer) {
-            buf.timer = setTimeout(() => flushDelta(socket), FLUSH_MS);
+            buf.timer = setTimeout(() => flushDelta(socket), FLUSH_MS)
           }
         } else {
           // text_end 等子事件:先冲掉缓冲的 delta,保证顺序
-          flushDelta(socket);
+          flushDelta(socket)
         }
-        break;
+        break
       }
-      case "tool_execution_start":
-        flushDelta(socket);
+      case 'tool_execution_start':
+        flushDelta(socket)
+        socket.send(JSON.stringify({ type: 'tool_start', tool: e.toolName, args: e.args }))
+        break
+      case 'tool_execution_end':
+        flushDelta(socket)
         socket.send(
-          JSON.stringify({ type: "tool_start", tool: e.toolName, args: e.args })
-        );
-        break;
-      case "tool_execution_end":
-        flushDelta(socket);
-        socket.send(
-          JSON.stringify({ type: "tool_end", tool: e.toolName, error: Boolean(e.isError) })
-        );
-        break;
-      case "agent_end":
-        flushDelta(socket);
-        socket.send(JSON.stringify({ type: "done" }));
+          JSON.stringify({ type: 'tool_end', tool: e.toolName, error: Boolean(e.isError) }),
+        )
+        break
+      case 'agent_end':
+        flushDelta(socket)
+        socket.send(JSON.stringify({ type: 'done' }))
         // 闭环刷新:agent 写完 wiki/output 后自动 build,有变更推 kb_updated
-        void triggerBuild(socket);
-        break;
+        void triggerBuild(socket)
+        break
       default:
-        break;
+        break
     }
   }
 
   /** 构建 + 通知:纯函数 buildView → 对比缓存 → 变了才换缓存并广播 kb_updated。 */
   async function triggerBuild(notify: { send: (s: string) => void } | null): Promise<void> {
-    const r = await buildView(PROJECT_ROOT);
+    const r = await buildView(currentVaultRoot())
     if (hasIndexChanged(viewCache?.fragments ?? null, r.fragments)) {
-      viewCache = r;
-      const payload = JSON.stringify({ type: "kb_updated", total: r.pages.length });
-      if (notify) notify.send(payload);
-      broadcast(payload);
+      viewCache = r
+      const payload = JSON.stringify({ type: 'kb_updated', total: r.pages.length })
+      if (notify) notify.send(payload)
+      broadcast(payload)
     }
+  }
+
+  // ── 活跃 ingest 计数(D5:切库前检查,ingest 进行中禁止切库)─────────
+  let activeIngestCount = 0
+  function isIngestActive(): boolean {
+    return activeIngestCount > 0
   }
 
   /** 后台 ingest:起独立 agent session,按 Ingest 工作流编译 raw 中的文件。 */
   async function runIngest(rawName: string): Promise<void> {
-    const log = app.log.child({ raw: rawName });
-    log.info("ingest started");
+    const log = app.log.child({ raw: rawName })
+    activeIngestCount += 1
+    broadcast({ type: 'ingest_started' })
+    log.info('ingest started')
 
     const session = await createIngestSession({
       ctx: agentCtx,
+      kbRoot: currentKbRoot,
       onEvent: (event) => {
-        const e = event as { type: string };
-        log.debug({ event: e.type }, "ingest event");
+        const e = event as { type: string }
+        log.debug({ event: e.type }, 'ingest event')
       },
-    });
+    })
+    ingestSessions.add(session)
 
     const prompt = [
       `已上传文件 raw/${rawName}。请按 Ingest 工作流处理:`,
@@ -168,121 +211,338 @@ export async function createInteraction(agentCtx: AgentContext): Promise<Interac
       `4. 若内容达到产出 output 的条件(如可形成对比分析/报告),可产出 output`,
       `5. 追加 log.md`,
       `6. 若判断不值得编译,简短说明并结束`,
-    ].join("\n");
+    ].join('\n')
 
-    await session.prompt(prompt);
-    log.info("ingest finished");
+    try {
+      await session.prompt(prompt)
+      log.info('ingest finished')
 
-    // 通知对话客户端:ingest 完成 + 触发 build
-    broadcast({ type: "ingest_done", raw: rawName });
-    await triggerBuild(null);
+      // 通知对话客户端:ingest 完成 + 触发 build
+      broadcast({ type: 'ingest_done', raw: rawName })
+      await triggerBuild(null)
+    } finally {
+      activeIngestCount = Math.max(0, activeIngestCount - 1)
+      ingestSessions.delete(session)
+      session.dispose()
+    }
   }
 
   // 健康检查端点
-  app.get("/api/health", async () => ({ ok: true, ts: Date.now() }));
+  app.get('/api/health', async () => ({ ok: true, ts: Date.now() }))
 
   // 可视数据端点:pages 索引 + 单篇片段(供 web 运行时 fetch)
-  app.get("/api/pages", async () => viewCache?.pages ?? []);
-  app.get("/api/pages/:stem", async (req, reply) => {
-    const stem = (req.params as { stem: string }).stem;
-    const frag = viewCache?.fragments.get(stem);
-    if (!frag) return reply.code(404).send({ error: "not found" });
-    return reply.type("text/html").send(frag);
-  });
+  app.get('/api/pages', async () => viewCache?.pages ?? [])
+  app.get('/api/pages/:stem', async (req, reply) => {
+    const stem = (req.params as { stem: string }).stem
+    const frag = viewCache?.fragments.get(stem)
+    if (!frag) return reply.code(404).send({ error: 'not found' })
+    return reply.type('text/html').send(frag)
+  })
 
   // WebSocket:对话事件桥
-  app.get("/ws", { websocket: true }, async (socket, req) => {
-    const log = req.log;
-    log.info("ws client connected");
-    chatClients.add(socket);
+  app.get('/ws', { websocket: true }, async (socket, req) => {
+    const log = req.log
+    log.info('ws client connected')
 
     const session = await createChatSession({
       ctx: agentCtx,
+      kbRoot: currentKbRoot,
       onEvent: (event) => relayEvent(socket, event),
-    });
+    })
+    // createChatSession 期间客户端可能已断开(快速刷新/网络抖动):已 close 的 socket
+    // 不再触发 close 事件,若不检查会导致 session 不 dispose + chatSessions 残留 dead entry。
+    if (socket.readyState !== 1 /* OPEN */) {
+      log.warn('ws client disconnected during session creation, disposing session')
+      session.dispose()
+      return
+    }
+    chatSessions.set(socket, session)
 
-    socket.on("message", async (raw: Buffer) => {
-      const msg = JSON.parse(raw.toString()) as { text?: string };
-      if (!msg.text) return;
+    socket.on('message', async (raw: Buffer) => {
+      const msg = JSON.parse(raw.toString()) as { text?: string }
+      if (!msg.text) return
       try {
-        await session.prompt(msg.text);
+        await session.prompt(msg.text)
       } catch (err) {
-        log.error({ err }, "prompt failed");
+        log.error({ err }, 'prompt failed')
         socket.send(
-          JSON.stringify({ type: "error", text: err instanceof Error ? err.message : String(err) })
-        );
+          JSON.stringify({ type: 'error', text: err instanceof Error ? err.message : String(err) }),
+        )
       }
-    });
+    })
 
-    socket.on("close", () => {
-      chatClients.delete(socket);
+    socket.on('close', () => {
+      chatSessions.delete(socket)
       // 清理未 flush 的 delta 缓冲与定时器,避免泄漏/迟到写入
-      const buf = getDeltaBuf(socket);
-      if (buf.timer) clearTimeout(buf.timer);
-      buf.timer = null;
-      buf.text = "";
+      const buf = getDeltaBuf(socket)
+      if (buf.timer) clearTimeout(buf.timer)
+      buf.timer = null
+      buf.text = ''
 
       // 释放会话,移除监听。落盘文件由 pi 的 lazy-flush 策略管理:
       // 仅在出现 assistant 消息时才真正写盘,空会话不会产生文件,无需清理。
-      session.dispose();
-    });
-  });
+      session.dispose()
+    })
+  })
 
   // ── 上传端点:接收 .md → 归档 raw/ → 触发后台 ingest agent ─────────
-  app.post("/api/upload", async (req, reply) => {
-    const log = req.log;
+  app.post('/api/upload', async (req, reply) => {
+    const log = req.log
 
-    const file = await req.file();
+    const file = await req.file()
     if (!file) {
-      return reply.code(400).send({ error: "未提供文件" });
+      return reply.code(400).send({ error: '未提供文件' })
     }
     // 限制类型:仅 .md
-    const ext = path.extname(file.filename).toLowerCase();
-    if (ext !== ".md") {
-      return reply.code(415).send({ error: "仅支持 .md 文件" });
+    const ext = path.extname(file.filename).toLowerCase()
+    if (ext !== '.md') {
+      return reply.code(415).send({ error: '仅支持 .md 文件' })
     }
 
     // 安全的文件名:保留原命名,去掉路径与危险字符
-    const safeName = path.basename(file.filename).replace(/[^\w.一-龥-]/g, "_");
-    const rawPath = path.join(rawDir(PROJECT_ROOT), safeName);
+    const safeName = path.basename(file.filename).replace(/[^\w.一-龥-]/g, '_')
+    const rawPath = path.join(rawDir(currentVaultRoot()), safeName)
 
     // 归档到 raw/(写锁;raw/ 对 agent 只读,但上传端点是合法写入方)
     await withFileLock(rawPath, async () => {
-      await fs.mkdir(rawDir(PROJECT_ROOT), { recursive: true });
-      const buf = await file.toBuffer();
-      await fs.writeFile(rawPath, buf, "utf-8");
-    });
-    log.info({ rawPath: safeName }, "uploaded to raw/");
+      await fs.mkdir(rawDir(currentVaultRoot()), { recursive: true })
+      const buf = await file.toBuffer()
+      await fs.writeFile(rawPath, buf, 'utf-8')
+    })
+    log.info({ rawPath: safeName }, 'uploaded to raw/')
 
     // 立即回复客户端,ingest 在后台异步进行
-    reply.send({ ok: true, raw: safeName, message: "已归档 raw/,后台编译中" });
+    reply.send({ ok: true, raw: safeName, message: '已归档 raw/,后台编译中' })
 
     // 触发后台 ingest agent(不阻塞响应)
     void runIngest(safeName).catch((err) => {
-      log.error({ err }, "ingest failed");
+      log.error({ err }, 'ingest failed')
       broadcast({
-        type: "ingest_error",
+        type: 'ingest_error',
         raw: safeName,
         text: err instanceof Error ? err.message : String(err),
-      });
-    });
-  });
+      })
+    })
+  })
 
-  // 生产环境托管前端构建产物(@fastify/static)将在打包阶段加入;
-  // dev 时前端走自己的 vite 端口,通过 vite proxy 转发 /api 与 /ws 到本服务。
-  app.get("/", async (_req, reply) =>
-    reply.type("text/plain").send(
-      "z-wiki server. 开发模式请访问 vite dev server;前端构建产物托管待打包阶段接入。"
+  // ── Vault 管理 + 配置端点(ADR-0003 D4/D5/D7/D3.1)─────────────────
+  // config.json 是真相源,读写均经 withFileLock 串行化(切库写 currentVault 与设置页写 apiKey 可能并发)。
+
+  /** 把名字转为安全的目录名段(用于派生新 Vault 的 kb/ 路径)。 */
+  function slugify(name: string): string {
+    return (
+      name
+        .trim()
+        .replace(/[^\w.一-龥-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'vault'
     )
-  );
+  }
+
+  /** 查 config.json 中已知 Vault 的显示名(找不到则取 kb/ 父目录名)。 */
+  function vaultDisplayName(kbRootPath: string, cfg: { vaults?: VaultEntry[] }): string {
+    const found = cfg.vaults?.find((v) => v.path === kbRootPath)
+    return found?.name || path.basename(path.dirname(kbRootPath)) || kbRootPath
+  }
+
+  // 已知 Vault 列表 + 当前打开项(运行时真相 = currentKbRoot,config.currentVault 跟随同步)。
+  app.get('/api/vaults', async () => {
+    const cfg = readConfig(configPath)
+    return { vaults: cfg.vaults ?? [], currentVault: currentKbRoot }
+  })
+
+  // 活跃 ingest 状态(D5:切库前检查,前端据此禁用切库按钮)。
+  app.get('/api/ingest/active', async () => ({ active: isIngestActive() }))
+
+  // 配置状态(只读):baseUrl/api/model + apiKey 是否已填 + 暴露的 api 规范(ADR-0004 D1/D2)。
+  // 不回显 apiKey 明文,只暴露布尔,供设置页展示"已配置/未配置"。读 config.json 真相源(运行时可变)。
+  app.get('/api/config/status', async () => {
+    const cfg = readConfig(configPath)
+    return {
+      baseUrl: cfg.baseUrl,
+      api: cfg.api,
+      model: cfg.model,
+      hasApiKey: Boolean(cfg.apiKey),
+      exposedApiSpecs: cfg.exposedApiSpecs ?? [],
+    }
+  })
+
+  // api 规范 manifest(ADR-0004 D2):供设置页 dropdown 渲染可选规范。
+  // specs = 全量 manifest(openai-completions + anthropic-messages);exposed = config 选中的子集。
+  app.get('/api/specs', async () => {
+    const cfg = readConfig(configPath)
+    return { specs: API_SPECS, exposed: cfg.exposedApiSpecs ?? [] }
+  })
+
+  // 新建空 Vault:从 kb_example 复制到指定路径(或 appRoot 下派生路径)→ 加入 config.vaults。
+  // 不自动切换(切换走 /api/vault/switch,决策 D4)。
+  app.post('/api/vault', async (req, reply) => {
+    const body = (req.body ?? {}) as { name?: string; path?: string }
+    let kbRootPath: string
+    if (body.path) {
+      kbRootPath = path.resolve(body.path)
+    } else if (body.name) {
+      // 无显式路径时,在 appRoot 下派生(桌面形态 = UserDataDir,dev = 项目根)
+      kbRootPath = path.join(agentCtx.appRoot, `${slugify(body.name)}-kb`)
+    } else {
+      return reply.code(400).send({ error: '需提供 name 或 path' })
+    }
+
+    if (!kbExamplePath) {
+      return reply
+        .code(503)
+        .send({ error: '服务器未配置 kbExamplePath,无法新建 Vault(仅桌面/prod 形态支持)' })
+    }
+    if (!existsSync(kbExamplePath)) {
+      return reply.code(500).send({ error: `bundle 内 kb_example 不存在:${kbExamplePath}` })
+    }
+    // 目标 kb/ 已存在则拒绝(避免覆盖既有知识库)
+    if (existsSync(kbRootPath)) {
+      return reply.code(409).send({ error: `目标路径已存在:${kbRootPath}` })
+    }
+
+    await fs.mkdir(path.dirname(kbRootPath), { recursive: true })
+    await fs.cp(kbExamplePath, kbRootPath, { recursive: true })
+
+    const entry: VaultEntry = {
+      path: kbRootPath,
+      name: body.name?.trim() || path.basename(kbRootPath),
+    }
+    await withFileLock(configPath, async () => {
+      const cfg = readConfig(configPath)
+      cfg.vaults = [...(cfg.vaults ?? []), entry]
+      writeConfig(configPath, cfg)
+    })
+
+    req.log.info({ kbRootPath, name: entry.name }, 'vault created')
+    return reply.code(201).send({ vault: entry })
+  })
+
+  // 切换 Vault(D7 闭环):查活跃 ingest → 409;否则换指针 + 推 vault_changed + 关所有 WS + rebuild。
+  app.post('/api/vault/switch', async (req, reply) => {
+    const body = (req.body ?? {}) as { path?: string }
+    if (!body.path) {
+      return reply.code(400).send({ error: '需提供目标 Vault 的 path(kb/ 绝对路径)' })
+    }
+    const targetKbRoot = path.resolve(body.path)
+    if (targetKbRoot === currentKbRoot) {
+      return reply.code(400).send({ error: '目标 Vault 即为当前 Vault' })
+    }
+    if (!existsSync(targetKbRoot)) {
+      return reply.code(400).send({ error: `目标 Vault 不存在:${targetKbRoot}` })
+    }
+    // D5:活跃 ingest 中禁止切库(已绑旧库 cwd 的 ingest 会与新库状态分裂)
+    if (isIngestActive()) {
+      return reply.code(409).send({ error: '有上传正在处理,请等待完成后再切换 Vault' })
+    }
+
+    // 换指针:currentKbRoot + config.currentVault(串行化写,锁内 read-modify-write 保证原子)
+    currentKbRoot = targetKbRoot
+    const updatedCfg = await withFileLock(configPath, async () => {
+      const cfg = readConfig(configPath)
+      cfg.currentVault = targetKbRoot
+      writeConfig(configPath, cfg)
+      return cfg
+    })
+
+    // rebuild buildView(扫新 Vault),更新 viewCache——reply 前完成,前端重连后 /api/pages 即新内容。
+    viewCache = await buildView(currentVaultRoot())
+
+    const vaultInfo = { path: targetKbRoot, name: vaultDisplayName(targetKbRoot, updatedCfg) }
+    // 先推 vault_changed(显式信号,前端据此清空消息 + 区分切库重连),再 close 复用 on('close') 清理。
+    broadcast({ type: 'vault_changed', vault: vaultInfo })
+    for (const c of chatSessions.keys()) {
+      if (c.readyState === 1 /* OPEN */) c.close()
+    }
+
+    req.log.info({ vault: vaultInfo }, 'vault switched')
+    return reply.send({ vault: vaultInfo })
+  })
+
+  // 修改 LLM 配置(ADR-0004 D5/D7):写 config.json + 冷重载(modelRegistry.refresh +
+  // 遍历 chat/ingest session.setModel),不丢对话上下文。替代老的 PUT /api/config/apikey。
+  // 空 apiKey/baseUrl/api/model → 400(Q4.1d:UI 提前拦 + 后端校验兜底)。
+  app.post('/api/config/llm', async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      baseUrl?: string
+      api?: string
+      model?: string
+      apiKey?: string
+    }
+    // 校验:4 字段都必须是非空字符串(防空 + 防非字符串类型,coding-style 边界校验)
+    const required: Array<[unknown, string]> = [
+      [body.apiKey, 'apiKey'],
+      [body.baseUrl, 'baseUrl'],
+      [body.api, 'api'],
+      [body.model, 'model'],
+    ]
+    for (const [val, name] of required) {
+      if (typeof val !== 'string' || !val) {
+        return reply.code(400).send({ error: `需提供 ${name}` })
+      }
+    }
+
+    // 写 config(writeConfig 规范化 baseUrl),锁内 read-modify-write 后读回规范化值喂 reload
+    const updatedCfg = await withFileLock(configPath, async () => {
+      const cfg = readConfig(configPath)
+      cfg.baseUrl = body.baseUrl as string
+      cfg.api = body.api as string
+      cfg.model = body.model as string
+      cfg.apiKey = body.apiKey as string
+      writeConfig(configPath, cfg)
+      return readConfig(configPath)
+    })
+
+    // 冷重载:refresh modelRegistry + setRuntimeApiKey + resolveModel(D5)
+    // 注意:config.json 已写入,即使 reload 失败配置也已保存——错误信息须如实告知。
+    let model: Model<Api>
+    try {
+      model = await reloadAgentConfig(agentCtx, updatedCfg)
+    } catch (err) {
+      return reply.code(500).send({
+        error: `配置已保存但重载失败:${err instanceof Error ? err.message : String(err)}。请修正后重新载入。`,
+      })
+    }
+    // 遍历所有活跃 session(chat + ingest)换 model,不丢上下文(pi setModel 不清 messages)
+    await applyModelToSessions([...chatSessions.values(), ...ingestSessions], model)
+    broadcast({ type: 'config_reloaded' })
+    req.log.info('LLM config reloaded and applied to all sessions')
+    return reply.send({ ok: true })
+  })
+
+  // 前端静态资源托管(ADR-0003 D2.1):prod/桌面形态同端口 serve web/dist,
+  // SPA + API 同源,前端相对路径 fetch 零改造。dev 形态(webDistPath 省略)走 vite proxy。
+  if (opts.webDistPath) {
+    await app.register(fastifyStatic, {
+      root: opts.webDistPath,
+      prefix: '/',
+      decorateReply: true,
+    })
+    // SPA fallback:非 /api 的 GET 请求(如 /pages/:stem)回退到 index.html,交给前端路由。
+    // /api/* 仍走 JSON 404,不被吞成 index.html。
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method === 'GET' && !req.url.startsWith('/api/') && !req.url.startsWith('/ws')) {
+        return reply.sendFile('index.html')
+      }
+      return reply.code(404).send({ error: 'not found' })
+    })
+  } else {
+    app.get('/', async (_req, reply) =>
+      reply
+        .type('text/plain')
+        .send(
+          'z-wiki server. 开发模式请访问 vite dev server;prod 形态由 desktop 主进程传入 webDistPath 托管。',
+        ),
+    )
+  }
 
   return {
     app,
     log: app.log,
     refreshView: async () => {
-      const r = await buildView(PROJECT_ROOT);
-      viewCache = r;
-      return r.pages.length;
+      const r = await buildView(currentVaultRoot())
+      viewCache = r
+      return r.pages.length
     },
-  };
+  }
 }

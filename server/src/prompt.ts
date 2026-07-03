@@ -225,4 +225,4 @@ view: true  # 或 false
 - 检索知识库文件优先用内置 \`grep\`、\`find\`、\`ls\`、\`read\` 工具
 - 写文件用 \`write\`,改文件用 \`edit\`
 - 不要假设 Obsidian 或 obsidian-cli 存在;本系统不依赖它们
-`;
+`

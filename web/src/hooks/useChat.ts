@@ -22,7 +22,18 @@ export interface ChatMessage {
 }
 
 interface ServerMsg {
-  type: 'text_delta' | 'tool_start' | 'tool_end' | 'done' | 'error' | 'system' | 'kb_updated' | 'ingest_done' | 'ingest_error'
+  type:
+    | 'text_delta'
+    | 'tool_start'
+    | 'tool_end'
+    | 'done'
+    | 'error'
+    | 'system'
+    | 'kb_updated'
+    | 'ingest_started'
+    | 'ingest_done'
+    | 'ingest_error'
+    | 'vault_changed'
   text?: string
   tool?: string
   args?: unknown
@@ -30,6 +41,7 @@ interface ServerMsg {
   changed?: number
   total?: number
   raw?: string
+  vault?: { path: string; name: string }
 }
 
 let counter = 0
@@ -37,7 +49,7 @@ const nextId = () => `m${Date.now()}-${counter++}`
 
 /** 不可变更新:替换数组中指定 id 的元素。 */
 function replaceById<T extends { id: string }>(arr: T[], id: string, next: T): T[] {
-  return arr.map(it => (it.id === id ? next : it))
+  return arr.map((it) => (it.id === id ? next : it))
 }
 
 export function useChat() {
@@ -47,9 +59,16 @@ export function useChat() {
   const wsRef = useRef<WebSocket | null>(null)
   // 当前正在流式累加的 assistant 回合 id
   const streamingIdRef = useRef<string | null>(null)
+  // 组件是否仍挂载(卸载后不重连,避免 StrictMode 双挂载/路由离开后残留连接)
+  const mountedRef = useRef(true)
+  // 切库重连标志:vault_changed 收到后置 true,onclose 据此区分切库重连(短延迟)与崩溃重连(退避)
+  const vaultSwitchingRef = useRef(false)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
+    // 已连接或连接中时不重复开(重连定时器与 StrictMode 双挂载都可能并发触发)
+    const state = wsRef.current?.readyState
+    if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const ws = new WebSocket(`${proto}//${window.location.host}/ws`)
     wsRef.current = ws
@@ -57,9 +76,16 @@ export function useChat() {
     ws.onopen = () => setConnected(true)
     ws.onclose = () => {
       setConnected(false)
-      // 仅当仍是当前连接时才清空,避免 StrictMode 双挂载下
-      // 旧 ws 的异步 onclose 覆盖新 ws 的引用
-      if (wsRef.current === ws) wsRef.current = null
+      // 仅当仍是当前连接时处理:StrictMode 双挂载下旧 ws 的 onclose 不应触发重连
+      if (wsRef.current !== ws) return
+      wsRef.current = null
+      if (!mountedRef.current) return
+      const wasSwitch = vaultSwitchingRef.current
+      vaultSwitchingRef.current = false
+      // 切库重连:server 主动关(vault_changed 已先到),快速重连到新库;
+      // 崩溃重连:意外断开,退避后重连(保留历史消息,与切库重连区分)
+      const delay = wasSwitch ? 400 : 1500
+      reconnectTimerRef.current = setTimeout(() => connect(), delay)
     }
     ws.onerror = () => setConnected(false)
     ws.onmessage = (ev) => {
@@ -67,16 +93,19 @@ export function useChat() {
       switch (msg.type) {
         case 'text_delta': {
           // 累加到当前 assistant 回合:若末段是 text 则续写,否则新建 text 段
-          setMessages(prev => {
+          setMessages((prev) => {
             const id = streamingIdRef.current
             if (!id) return prev
             const delta = msg.text ?? ''
-            return prev.map(m => {
+            return prev.map((m) => {
               if (m.id !== id) return m
               const segs = m.segments ?? []
               const last = segs[segs.length - 1]
               if (last && last.kind === 'text') {
-                return { ...m, segments: replaceById(segs, last.id, { ...last, text: last.text + delta }) }
+                return {
+                  ...m,
+                  segments: replaceById(segs, last.id, { ...last, text: last.text + delta }),
+                }
               }
               const seg: Segment = { kind: 'text', id: nextId(), text: delta }
               return { ...m, segments: [...segs, seg] }
@@ -86,7 +115,7 @@ export function useChat() {
         }
         case 'tool_start': {
           // 追加 running 工具段,保留与前后文本的时序
-          setMessages(prev => {
+          setMessages((prev) => {
             const id = streamingIdRef.current
             if (!id || !msg.tool) return prev
             const seg: Segment = {
@@ -96,19 +125,19 @@ export function useChat() {
               status: 'running',
               args: msg.args,
             }
-            return prev.map(m =>
-              m.id === id ? { ...m, segments: [...(m.segments ?? []), seg] } : m
+            return prev.map((m) =>
+              m.id === id ? { ...m, segments: [...(m.segments ?? []), seg] } : m,
             )
           })
           break
         }
         case 'tool_end': {
           // 配对最近一个同名 running 工具段,置为 done/error
-          setMessages(prev => {
+          setMessages((prev) => {
             const id = streamingIdRef.current
             if (!id || !msg.tool) return prev
             const errored = Boolean(msg.error)
-            return prev.map(m => {
+            return prev.map((m) => {
               if (m.id !== id) return m
               const segs = m.segments ?? []
               // 从末尾找最近一个同名 running
@@ -122,7 +151,10 @@ export function useChat() {
               }
               if (idx === -1) return m
               const updated = segs.slice()
-              updated[idx] = { ...updated[idx] as Extract<Segment, { kind: 'tool' }>, status: errored ? 'error' : 'done' }
+              updated[idx] = {
+                ...(updated[idx] as Extract<Segment, { kind: 'tool' }>),
+                status: errored ? 'error' : 'done',
+              }
               return { ...m, segments: updated }
             })
           })
@@ -136,20 +168,35 @@ export function useChat() {
           // 知识库已重建,通知 useData 重拉 pages
           window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
           break
+        case 'ingest_started':
+          // ingest 开始:通知设置页禁用切库按钮(D5)
+          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: true } }))
+          break
         case 'ingest_done':
-          setMessages(prev => [
+          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: false } }))
+          setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `已处理上传文件 ${msg.raw},知识库已更新` },
           ])
           break
         case 'ingest_error':
-          setMessages(prev => [
+          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: false } }))
+          setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `处理 ${msg.raw} 失败:${msg.text}`, error: true },
           ])
           break
+        case 'vault_changed':
+          // 切库显式信号(D7):清空旧库消息(上下文作废),标记切库重连(短延迟),
+          // 通知 useData 重拉 pages。server 随后会 close 本 WS,触发 onclose 重连到新库。
+          vaultSwitchingRef.current = true
+          setMessages([])
+          streamingIdRef.current = null
+          setStreaming(false)
+          window.dispatchEvent(new CustomEvent('kb-updated'))
+          break
         case 'error':
-          setMessages(prev => [
+          setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: msg.text ?? '未知错误', error: true },
           ])
@@ -164,8 +211,13 @@ export function useChat() {
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     connect()
-    return () => wsRef.current?.close()
+    return () => {
+      mountedRef.current = false
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+      wsRef.current?.close()
+    }
   }, [connect])
 
   const send = useCallback(
@@ -175,7 +227,7 @@ export function useChat() {
       // 推入用户消息,并预建一条空 assistant 回合用于流式累加
       const assistantId = nextId()
       streamingIdRef.current = assistantId
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
         { id: nextId(), role: 'user', text: trimmed },
         { id: assistantId, role: 'assistant', segments: [] },
@@ -183,12 +235,12 @@ export function useChat() {
       setStreaming(true)
       wsRef.current.send(JSON.stringify({ text: trimmed }))
     },
-    [streaming]
+    [streaming],
   )
 
   const upload = useCallback(async (file: File) => {
     if (!file) return
-    setMessages(prev => [
+    setMessages((prev) => [
       ...prev,
       { id: nextId(), role: 'system', text: `上传 ${file.name} 中…` },
     ])
@@ -198,20 +250,30 @@ export function useChat() {
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) {
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
-          { id: nextId(), role: 'system', text: `上传失败:${data.error ?? res.status}`, error: true },
+          {
+            id: nextId(),
+            role: 'system',
+            text: `上传失败:${data.error ?? res.status}`,
+            error: true,
+          },
         ])
       } else {
-        setMessages(prev => [
+        setMessages((prev) => [
           ...prev,
           { id: nextId(), role: 'system', text: `${file.name} 已上传,后台编译中…` },
         ])
       }
     } catch (err) {
-      setMessages(prev => [
+      setMessages((prev) => [
         ...prev,
-        { id: nextId(), role: 'system', text: `上传出错:${err instanceof Error ? err.message : String(err)}`, error: true },
+        {
+          id: nextId(),
+          role: 'system',
+          text: `上传出错:${err instanceof Error ? err.message : String(err)}`,
+          error: true,
+        },
       ])
     }
   }, [])
