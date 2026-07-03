@@ -11,7 +11,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { KB_SYSTEM_PROMPT } from './prompt.js'
 import { kbHooksFactory } from './kbHooks.js'
-import { readConfig, writeModelsJson, type ConfigJson } from './config.js'
+import { PROVIDER_KEY, readConfig, writeModelsJson, type ConfigJson } from './config.js'
 
 // thinking 级别(可配置项暴露于此)。provider/model 改走 config.json(ADR-0003 D3.1)。
 const THINKING_LEVEL = 'off' as const
@@ -69,7 +69,7 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
 
   // authStorage 用内存后端 + setRuntimeApiKey:apiKey 运行时注入,auth.json 不落盘(ADR-0003 D3.1)。
   const authStorage = AuthStorage.inMemory()
-  authStorage.setRuntimeApiKey(config.provider, config.apiKey)
+  authStorage.setRuntimeApiKey(PROVIDER_KEY, config.apiKey)
   const modelRegistry = ModelRegistry.create(authStorage, modelsJsonPath)
 
   // 资源加载器:注入知识库系统提示词 + kb 钩子 extension
@@ -86,12 +86,10 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
 
 /** 查找配置好的模型,找不到则抛错。 */
 export function resolveModel(ctx: AgentContext) {
-  const { provider, model: modelId } = ctx.config
-  const model = ctx.modelRegistry.find(provider, modelId)
+  const { model: modelId } = ctx.config
+  const model = ctx.modelRegistry.find(PROVIDER_KEY, modelId)
   if (!model) {
-    throw new Error(
-      `模型未找到:provider="${provider}" id="${modelId}"。请检查 config.json 的 provider/model 字段。`,
-    )
+    throw new Error(`模型未找到:id="${modelId}"。请检查 config.json 的 baseUrl/api/model 字段。`)
   }
   return model
 }

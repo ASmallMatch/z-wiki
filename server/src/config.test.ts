@@ -3,35 +3,59 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { generateModelsJson, readConfig, writeModelsJson, type ConfigJson } from './config.js'
+import {
+  generateModelsJson,
+  readConfig,
+  writeModelsJson,
+  writeConfig,
+  PROVIDER_KEY,
+  type ConfigJson,
+} from './config.js'
+import { DEFAULT_EXPOSED_SPECS } from './apiSpecs.js'
 
-const arkConfig = (overrides: Partial<ConfigJson> = {}): ConfigJson => ({
+const llmConfig = (overrides: Partial<ConfigJson> = {}): ConfigJson => ({
   apiKey: 'test-key',
-  provider: 'ark',
-  model: 'ark-code-latest',
+  baseUrl: 'https://api.example.com/v1',
+  api: 'openai-completions',
+  model: 'gpt-4o',
   ...overrides,
 })
 
-test('generateModelsJson: ark config 产出符合 pi 格式的 models.json', () => {
-  const json = generateModelsJson({ provider: 'ark', model: 'ark-code-latest' })
+test('PROVIDER_KEY: 固定为 custom(三处引用对齐)', () => {
+  assert.equal(PROVIDER_KEY, 'custom')
+})
+
+test('generateModelsJson: 产出符合 pi 格式的 models.json(provider key 固定 custom)', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.example.com/v1',
+    api: 'openai-completions',
+    model: 'gpt-4o',
+  })
   assert.deepEqual(json, {
     providers: {
-      ark: {
-        baseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
-        api: 'anthropic-messages',
-        models: [{ id: 'ark-code-latest', contextWindow: 128000 }],
+      custom: {
+        baseUrl: 'https://api.example.com/v1',
+        api: 'openai-completions',
+        models: [{ id: 'gpt-4o', contextWindow: 128000 }],
       },
     },
   })
 })
 
-test('generateModelsJson: model id 从 config 透传(支持未来换模型)', () => {
-  const json = generateModelsJson({ provider: 'ark', model: 'ark-code-v2' })
-  assert.equal(json.providers.ark.models[0].id, 'ark-code-v2')
+test('generateModelsJson: anthropic-messages 规范透传 baseUrl/api', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-messages',
+    model: 'claude-sonnet-4-5',
+  })
+  assert.equal(json.providers.custom.api, 'anthropic-messages')
+  assert.equal(json.providers.custom.baseUrl, 'https://api.anthropic.com')
+  assert.equal(json.providers.custom.models[0].id, 'claude-sonnet-4-5')
 })
 
-test('generateModelsJson: 非 ark provider 抛错(首版仅支持 ark)', () => {
-  assert.throws(() => generateModelsJson({ provider: 'openai', model: 'gpt-4' }), /首版仅支持 ark/)
+test('generateModelsJson: model 空 → models 数组空(空壳能起)', () => {
+  const json = generateModelsJson({ baseUrl: '', api: 'openai-completions', model: '' })
+  assert.deepEqual(json.providers.custom.models, [])
 })
 
 test('readConfig: 文件不存在 → 明确报错指向 config.example.json', async () => {
@@ -45,51 +69,95 @@ test('readConfig: 文件不存在 → 明确报错指向 config.example.json', a
   }
 })
 
-test('readConfig: 缺 apiKey → 不报错(桌面首次启动空 apiKey 是正常态,ADR-0003 D4)', async () => {
+test('readConfig: 缺 apiKey → 不报错(空壳能起,ADR-0004 D6)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
     const cfgPath = path.join(tmp, 'config.json')
     await fs.writeFile(
       cfgPath,
-      JSON.stringify({ apiKey: '', provider: 'ark', model: 'ark-code-latest' }),
+      JSON.stringify({ apiKey: '', baseUrl: '', api: 'openai-completions', model: '' }),
       'utf-8',
     )
     const cfg = readConfig(cfgPath)
     assert.equal(cfg.apiKey, '')
-    assert.equal(cfg.provider, 'ark')
+    assert.equal(cfg.model, '')
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }
 })
 
-test('readConfig: 缺 provider → 报错', async () => {
+test('readConfig: 缺 model → 不报错(空壳能起)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
     const cfgPath = path.join(tmp, 'config.json')
     await fs.writeFile(
       cfgPath,
-      JSON.stringify({ apiKey: 'k', provider: '', model: 'ark-code-latest' }),
+      JSON.stringify({
+        apiKey: 'k',
+        baseUrl: 'https://h/v1',
+        api: 'openai-completions',
+        model: '',
+      }),
       'utf-8',
     )
-    assert.throws(() => readConfig(cfgPath), /缺少 provider/)
+    const cfg = readConfig(cfgPath)
+    assert.equal(cfg.model, '')
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }
 })
 
-test('readConfig: 正常 config → 返回 parsed 对象', async () => {
+test('readConfig: 缺 api → 回退 openai-completions', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
     const cfgPath = path.join(tmp, 'config.json')
-    const full = arkConfig({
+    await fs.writeFile(
+      cfgPath,
+      JSON.stringify({ apiKey: 'k', baseUrl: 'https://h/v1', model: 'gpt-4o' }),
+      'utf-8',
+    )
+    const cfg = readConfig(cfgPath)
+    assert.equal(cfg.api, 'openai-completions')
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('readConfig: 缺 exposedApiSpecs → 回退默认值', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    await fs.writeFile(
+      cfgPath,
+      JSON.stringify({
+        apiKey: 'k',
+        baseUrl: 'https://h/v1',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+      }),
+      'utf-8',
+    )
+    const cfg = readConfig(cfgPath)
+    assert.deepEqual(cfg.exposedApiSpecs, DEFAULT_EXPOSED_SPECS)
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('readConfig: 正常 config → 返回 parsed 对象(含 vaults)', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    const full = llmConfig({
       vaults: [{ path: '/some/kb', name: 'work' }],
       currentVault: '/some/kb',
     })
     await fs.writeFile(cfgPath, JSON.stringify(full), 'utf-8')
     const cfg = readConfig(cfgPath)
     assert.equal(cfg.apiKey, 'test-key')
-    assert.equal(cfg.provider, 'ark')
-    assert.equal(cfg.model, 'ark-code-latest')
+    assert.equal(cfg.baseUrl, 'https://api.example.com/v1')
+    assert.equal(cfg.api, 'openai-completions')
+    assert.equal(cfg.model, 'gpt-4o')
     assert.equal(cfg.currentVault, '/some/kb')
     assert.equal(cfg.vaults?.[0].name, 'work')
   } finally {
@@ -97,15 +165,48 @@ test('readConfig: 正常 config → 返回 parsed 对象', async () => {
   }
 })
 
-test('writeModelsJson: 写入 agentDir/models.json,内容可被 ModelRegistry 格式接受', async () => {
+test('writeModelsJson: 写入 agentDir/models.json,内容与 generateModelsJson 一致', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
     const agentDir = path.join(tmp, '.pi/agent')
     await fs.mkdir(agentDir, { recursive: true })
-    const written = writeModelsJson(agentDir, arkConfig())
+    const cfg = llmConfig()
+    const written = writeModelsJson(agentDir, cfg)
     assert.equal(written, path.join(agentDir, 'models.json'))
     const onDisk = JSON.parse(await fs.readFile(written, 'utf-8'))
-    assert.deepEqual(onDisk, generateModelsJson({ provider: 'ark', model: 'ark-code-latest' }))
+    assert.deepEqual(onDisk, generateModelsJson(cfg))
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('writeConfig: 写入时规范化 baseUrl(剥尾部 suffix)', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    const cfg = llmConfig({
+      baseUrl: 'https://api.example.com/v1/chat/completions',
+      api: 'openai-completions',
+    })
+    writeConfig(cfgPath, cfg)
+    const onDisk = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as ConfigJson
+    assert.equal(onDisk.baseUrl, 'https://api.example.com/v1')
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('writeConfig: 不 mutate 入参 config 对象', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    const cfg = llmConfig({
+      baseUrl: 'https://api.example.com/v1/chat/completions',
+      api: 'openai-completions',
+    })
+    const originalBaseUrl = cfg.baseUrl
+    writeConfig(cfgPath, cfg)
+    assert.equal(cfg.baseUrl, originalBaseUrl, '入参对象的 baseUrl 不应被 writeConfig 改动')
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }

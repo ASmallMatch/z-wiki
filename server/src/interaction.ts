@@ -18,7 +18,7 @@ import {
 import { buildView, type PageMeta } from './buildView.js'
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
-import { readConfig, writeConfig, type VaultEntry } from './config.js'
+import { PROVIDER_KEY, readConfig, writeConfig, type VaultEntry } from './config.js'
 
 export interface Interaction {
   app: FastifyInstance
@@ -337,10 +337,11 @@ export async function createInteraction(
 
   // 配置状态(只读):provider/model + apiKey 是否已填(PRD user story 12/22)。
   // 不回显 apiKey 明文,只暴露布尔,供设置页展示"已配置/未配置"。读 config.json 真相源(运行时可变)。
+  // 切片 1:provider 固定 'custom'(ADR-0004 D4);切片 2 将改为返回 baseUrl/api/model。
   app.get('/api/config/status', async () => {
     const cfg = readConfig(configPath)
     return {
-      provider: cfg.provider,
+      provider: PROVIDER_KEY,
       model: cfg.model,
       hasApiKey: Boolean(cfg.apiKey),
     }
@@ -443,7 +444,8 @@ export async function createInteraction(
       writeConfig(configPath, cfg)
     })
     // 重新注入运行时 apiKey(立即生效,无需重启;auth.json 不落盘,ADR-0003 D3.1)
-    agentCtx.authStorage.setRuntimeApiKey(agentCtx.config.provider, body.apiKey)
+    // 切片 1:provider 固定 'custom'(ADR-0004 D4);切片 2 将用 POST /api/config/llm 替代此接口。
+    agentCtx.authStorage.setRuntimeApiKey(PROVIDER_KEY, body.apiKey)
     req.log.info('apiKey updated and re-injected')
     return reply.send({ ok: true })
   })

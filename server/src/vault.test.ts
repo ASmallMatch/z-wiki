@@ -13,7 +13,8 @@ process.env.LOG_LEVEL = 'error'
 
 const CONFIG_JSON = {
   apiKey: 'test-key',
-  provider: 'ark',
+  baseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
+  api: 'anthropic-messages',
   model: 'ark-code-latest',
 }
 
