@@ -1,29 +1,30 @@
 // interaction.ts — Interaction 模块:外部接入 + 业务编排。
 // 通过 AgentHost 的窄 interface 碰 agent(pi SDK 封装),自身不知道 agent 内部。
 // 持有可视数据缓存,经 HTTP 暴露给 web;编排 upload→ingest、agent_end→rebuild 闭环。
-import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
-import fastifyWebsocket from '@fastify/websocket'
+
+import { existsSync } from 'node:fs'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import type { Api, Model } from '@earendil-works/pi-ai'
+import type { AgentSession } from '@earendil-works/pi-coding-agent'
 import fastifyMultipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
 import type { WebSocket } from '@fastify/websocket'
-import path from 'node:path'
-import fs from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import fastifyWebsocket from '@fastify/websocket'
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import {
+  type AgentContext,
   applyModelToSessions,
   createChatSession,
   createIngestSession,
   reloadAgentConfig,
   withFileLock,
-  type AgentContext,
 } from './agentHost.js'
-import type { AgentSession } from '@earendil-works/pi-coding-agent'
-import type { Api, Model } from '@earendil-works/pi-ai'
+import { API_SPECS } from './apiSpecs.js'
 import { buildView, type PageMeta } from './buildView.js'
+import { maskApiKey, readConfig, type VaultEntry, writeConfig } from './config.js'
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
-import { API_SPECS } from './apiSpecs.js'
-import { readConfig, writeConfig, type VaultEntry } from './config.js'
 
 export interface Interaction {
   app: FastifyInstance
@@ -354,15 +355,18 @@ export async function createInteraction(
   // 活跃 ingest 状态(D5:切库前检查,前端据此禁用切库按钮)。
   app.get('/api/ingest/active', async () => ({ active: isIngestActive() }))
 
-  // 配置状态(只读):baseUrl/api/model + apiKey 是否已填 + 暴露的 api 规范(ADR-0004 D1/D2)。
-  // 不回显 apiKey 明文,只暴露布尔,供设置页展示"已配置/未配置"。读 config.json 真相源(运行时可变)。
+  // 配置状态(只读):baseUrl/api/model + apiKey(明文)+ 掩码 + 是否已填 + 暴露的 api 规范(ADR-0004 D1/D2)。
+  // apiKey 明文回传:威胁模型见 ADR-0003 D3.1——config.json 本就明文存,loopback 单用户,能读它的攻击者
+  // 已能读进程内存,掩码只防 UI 肩窥非安全边界。设置页眼睛切换明文/密文展示。
   app.get('/api/config/status', async () => {
     const cfg = readConfig(configPath)
     return {
       baseUrl: cfg.baseUrl,
       api: cfg.api,
       model: cfg.model,
+      apiKey: cfg.apiKey,
       hasApiKey: Boolean(cfg.apiKey),
+      apiKeyMasked: maskApiKey(cfg.apiKey),
       exposedApiSpecs: cfg.exposedApiSpecs ?? [],
     }
   })
@@ -457,6 +461,47 @@ export async function createInteraction(
 
     req.log.info({ vault: vaultInfo }, 'vault switched')
     return reply.send({ vault: vaultInfo })
+  })
+
+  // 删除 Vault:从 config.vaults 移除 + 删 kb/ 目录。不能删当前打开的库(先切到其他库再删)。
+  // ingest 绑 currentKbRoot,删非当前库不影响 ingest,故不检查 ingest 活跃。
+  app.post('/api/vault/delete', async (req, reply) => {
+    const body = (req.body ?? {}) as { path?: string }
+    if (!body.path) {
+      return reply.code(400).send({ error: '需提供要删除的 Vault 的 path(kb/ 绝对路径)' })
+    }
+    const targetKbRoot = path.resolve(body.path)
+    if (targetKbRoot === currentKbRoot) {
+      return reply.code(400).send({ error: '不能删除当前打开的知识库,请先切换到其他知识库' })
+    }
+
+    let existed = false
+    await withFileLock(configPath, async () => {
+      const cfg = readConfig(configPath)
+      const before = cfg.vaults ?? []
+      const remaining = before.filter((v) => v.path !== targetKbRoot)
+      if (remaining.length === before.length) return
+      cfg.vaults = remaining
+      writeConfig(configPath, cfg)
+      existed = true
+    })
+    if (!existed) {
+      return reply.code(404).send({ error: `未在 config.vaults 中找到该 Vault:${targetKbRoot}` })
+    }
+
+    // 删 kb/ 目录:config 已是真相源(移除成功)。目录删除失败不回滚 config——
+    // 真相源正确即可,残留目录可手动清理,避免回滚后又与 config 不一致。
+    try {
+      await fs.rm(targetKbRoot, { recursive: true, force: true })
+    } catch (err) {
+      req.log.error({ err, path: targetKbRoot }, 'remove vault dir failed after config removal')
+      return reply.code(500).send({
+        error: `已从配置移除,但删除目录失败:${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+
+    req.log.info({ path: targetKbRoot }, 'vault deleted')
+    return reply.send({ ok: true })
   })
 
   // 修改 LLM 配置(ADR-0004 D5/D7):写 config.json + 冷重载(modelRegistry.refresh +

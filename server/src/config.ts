@@ -55,6 +55,33 @@ const DEFAULT_API = 'openai-completions'
 const DEFAULT_CONTEXT_WINDOW = 128000
 
 /**
+ * 空壳配置默认值(与 config.example.json 对齐)。readConfig 在 config.json 不存在时返回此值,
+ * 让 server 以空壳起来(ADR-0004 D6「空壳能起」),用户后续在设置页填配置时 writeConfig 创建真实 config.json。
+ */
+const EMPTY_CONFIG: ConfigJson = {
+  apiKey: '',
+  baseUrl: '',
+  api: DEFAULT_API,
+  model: '',
+  exposedApiSpecs: [...DEFAULT_EXPOSED_SPECS],
+  vaults: [],
+  currentVault: '',
+  preferences: {},
+}
+
+/**
+ * 掩码 apiKey 供设置页展示(不回显明文,ADR-0004 D1):
+ * - 空 → 空字符串(未配置)
+ * - 长度 ≤ 8 → 固定 8 个圆点(不泄露长度)
+ * - 长度 > 8 → 前 4 位 + 8 圆点 + 后 4 位(可见首尾便于辨识,中间固定长度不泄露真实长度)
+ */
+export function maskApiKey(key: string): string {
+  if (!key) return ''
+  if (key.length <= 8) return '••••••••'
+  return `${key.slice(0, 4)}••••••••${key.slice(-4)}`
+}
+
+/**
  * 纯函数:输入 config 的 baseUrl/api/model,输出符合 pi 格式的 models.json 内容(ADR-0004 D1)。
  * provider key 固定 'custom'(D4)。model 空 → models 数组空(空壳能起,resolveModel 后续抛错)。
  * 启动时由 buildAgentContext 调用,结果写入 agentDir/models.json 喂 ModelRegistry。
@@ -77,16 +104,25 @@ export function generateModelsJson(
 
 /**
  * 读取并校验 config.json(ADR-0004 D6 空壳能起)。
- * - 文件不存在 / 解析失败 → 抛错(失败快,提示从样板起步)。
+ * - 文件不存在 → 回退空壳默认值(EMPTY_CONFIG,与 config.example.json 等价)+ warn,不抛错、不写盘。
+ *   契合空壳能起:server 先起来,用户在设置页填配置时 writeConfig 创建真实 config.json。
+ * - 解析失败 → 抛错(失败快,提示文件损坏)。
  * - apiKey/baseUrl/model 空 → 不抛(空壳能起,调用 agent 时报错)。
  * - api 缺失/空 → 回退 'openai-completions' + warn。
  * - exposedApiSpecs 缺失/空 → 回退 DEFAULT_EXPOSED_SPECS。
+ * - 老 schema(含 provider 字段)→ 抛迁移错误(失败快,不静默兜底成空壳)。
  */
 export function readConfig(configPath: string): ConfigJson {
   if (!existsSync(configPath)) {
-    throw new Error(
-      `配置文件不存在:${configPath}\n请从 config.example.json 复制为 config.json 并填入 LLM 配置。`,
+    // 文件不存在:回退空壳默认值(与 config.example.json 等价),不抛错、不写盘。
+    // 契合 ADR-0004 D6「空壳能起」——文件缺失也是一种空壳,agent 调用时再报 apiKey/baseUrl 空。
+    // 不自动 cp example:dev 形态 config.json 是 gitignored 真相源,自动写盘制造多余文件;
+    // 用户在 web 设置页(/settings → POST /api/config/llm → writeConfig)填配置时自然落盘。
+    console.warn(
+      `[z-wiki] 配置文件不存在:${configPath}。使用空壳默认值启动(agent 调用会失败,直到填入 LLM 配置)。\n` +
+        `填入配置:复制 config.example.json 为 config.json,或在 web 设置页(/settings)填写。`,
     )
+    return EMPTY_CONFIG
   }
   let parsed: unknown
   try {

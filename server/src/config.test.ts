@@ -58,12 +58,19 @@ test('generateModelsJson: model 空 → models 数组空(空壳能起)', () => {
   assert.deepEqual(json.providers.custom.models, [])
 })
 
-test('readConfig: 文件不存在 → 明确报错指向 config.example.json', async () => {
+test('readConfig: 文件不存在 → 回退空壳默认值(空壳能起,不抛错;与 config.example.json 等价)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
     const missing = path.join(tmp, 'config.json')
-    assert.throws(() => readConfig(missing), /配置文件不存在/)
-    assert.throws(() => readConfig(missing), /config\.example\.json/)
+    const cfg = readConfig(missing)
+    // 空壳默认值:apiKey/baseUrl/model 空,api/exposedApiSpecs 回退默认,vaults/currentVault 空
+    assert.equal(cfg.apiKey, '')
+    assert.equal(cfg.baseUrl, '')
+    assert.equal(cfg.model, '')
+    assert.equal(cfg.api, 'openai-completions')
+    assert.deepEqual(cfg.exposedApiSpecs, DEFAULT_EXPOSED_SPECS)
+    assert.deepEqual(cfg.vaults, [])
+    assert.equal(cfg.currentVault, '')
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }

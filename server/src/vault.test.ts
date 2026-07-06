@@ -1,9 +1,9 @@
-import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import path from 'node:path'
+import fs from 'node:fs/promises'
 import os from 'node:os'
+import path from 'node:path'
+import { test } from 'node:test'
 import { createServer } from './index.js'
 
 // 集成测试 Vault 管理 + 切库端点(ADR-0003 D4/D5/D7/D3.1)。
@@ -287,6 +287,10 @@ test('GET /api/config/status: 返回 baseUrl/api/model + hasApiKey + exposedApiS
     assert.equal(body.api, 'anthropic-messages')
     assert.equal(body.model, 'ark-code-latest')
     assert.equal(body.hasApiKey, true)
+    // apiKey 明文回传(ADR-0003 D3.1 威胁模型:loopback 单用户,掩码只防肩窥非安全边界)
+    assert.equal(body.apiKey, 'test-key')
+    // apiKey 掩码:test-key(8 字符)→ 固定 8 圆点(ADR-0004 D1)
+    assert.equal(body.apiKeyMasked, '••••••••')
     assert.ok(Array.isArray(body.exposedApiSpecs))
   } finally {
     await interaction.app.close()
@@ -480,5 +484,97 @@ test('WS: 切库时 chatClients 收到 vault_changed 事件 + 连接被关闭(D7
       fs.rm(vaultA.root, { recursive: true, force: true }),
       fs.rm(vaultB.root, { recursive: true, force: true }),
     ])
+  }
+})
+
+// ── POST /api/vault/delete ───────────────────────────────────────
+
+test('POST /api/vault/delete: 删除非当前库 → 200,config 移除 + 目录删除', async () => {
+  const vaultA = await makeVault({ 'wiki/01-aaa.md': VIEW_TRUE('AAA', 'x') })
+  const vaultB = await makeVault({ 'wiki/01-bbb.md': VIEW_TRUE('BBB', 'x') })
+  const cfgPath = path.join(vaultA.root, 'config.json')
+  await fs.writeFile(
+    cfgPath,
+    JSON.stringify({
+      ...CONFIG_JSON,
+      vaults: [
+        { path: vaultA.kbRoot, name: 'A' },
+        { path: vaultB.kbRoot, name: 'B' },
+      ],
+      currentVault: vaultA.kbRoot,
+    }),
+    'utf-8',
+  )
+  const interaction = await createServer({ kbRoot: vaultA.kbRoot, agentDir: vaultA.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/vault/delete',
+      payload: { path: vaultB.kbRoot },
+    })
+    assert.equal(res.statusCode, 200)
+    // config.vaults 已移除 vaultB,currentVault 不变
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as {
+      vaults: Array<{ path: string }>
+      currentVault: string
+    }
+    assert.equal(cfg.vaults.length, 1)
+    assert.ok(!cfg.vaults.some((v) => v.path === vaultB.kbRoot), 'vaultB 应已从 config 移除')
+    assert.equal(cfg.currentVault, vaultA.kbRoot)
+    // 目录已删除
+    assert.ok(!existsSync(vaultB.kbRoot), 'vaultB 的 kb/ 目录应已删除')
+  } finally {
+    await interaction.app.close()
+    await Promise.all([
+      fs.rm(vaultA.root, { recursive: true, force: true }),
+      fs.rm(vaultB.root, { recursive: true, force: true }),
+    ])
+  }
+})
+
+test('POST /api/vault/delete: 删当前库 → 400(不删 config/目录)', async () => {
+  const vault = await makeVault({})
+  const cfgPath = path.join(vault.root, 'config.json')
+  await fs.writeFile(
+    cfgPath,
+    JSON.stringify({
+      ...CONFIG_JSON,
+      vaults: [{ path: vault.kbRoot, name: '当前' }],
+      currentVault: vault.kbRoot,
+    }),
+    'utf-8',
+  )
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/vault/delete',
+      payload: { path: vault.kbRoot },
+    })
+    assert.equal(res.statusCode, 400)
+    assert.match((res.json() as { error: string }).error, /不能删除当前/)
+    // 未动 config 与目录
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as { vaults: unknown[] }
+    assert.equal(cfg.vaults.length, 1)
+    assert.ok(existsSync(vault.kbRoot), '当前库目录应保留')
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('POST /api/vault/delete: 不存在的 path → 404', async () => {
+  const vault = await makeVault({})
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/vault/delete',
+      payload: { path: path.join(vault.root, 'no-such-kb') },
+    })
+    assert.equal(res.statusCode, 404)
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
   }
 })
