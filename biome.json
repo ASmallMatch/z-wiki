@@ -12,7 +12,8 @@
       "!**/kb",
       "!**/kb_example",
       "!**/.pi",
-      "!**/.scratch"
+      "!**/.scratch",
+      "!**/.firecrawl"
     ]
   },
   "formatter": {
