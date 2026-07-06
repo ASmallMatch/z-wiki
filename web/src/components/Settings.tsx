@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import Select from './Select'
 
 /* ═══════════════════════════════════════════════════
    Settings — 设置页:LLM 配置(api 规范/baseUrl/model/apiKey)+ Vault 切换/新建
@@ -21,7 +22,9 @@ interface ConfigStatus {
   baseUrl: string
   api: string
   model: string
+  apiKey: string
   hasApiKey: boolean
+  apiKeyMasked: string
   exposedApiSpecs: string[]
 }
 
@@ -38,6 +41,7 @@ export default function Settings() {
   const [baseUrlInput, setBaseUrlInput] = useState('')
   const [modelInput, setModelInput] = useState('')
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [showKey, setShowKey] = useState(false)
   const [newVaultName, setNewVaultName] = useState('')
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,6 +63,7 @@ export default function Settings() {
       setConfigStatus(status)
       setBaseUrlInput(status.baseUrl || '')
       setModelInput(status.model || '')
+      setApiKeyInput(status.apiKey || '')
       setIngestActive(((await activeRes.json()) as { active: boolean }).active ?? false)
       const specsData = (await specsRes.json()) as { specs: ApiSpecEntry[]; exposed: string[] }
       setSpecs(specsData.specs ?? [])
@@ -109,7 +114,6 @@ export default function Settings() {
         setError(data.error ?? `HTTP ${res.status}`)
       } else {
         setNotice('配置已重载,可继续对话')
-        setApiKeyInput('')
         void load()
       }
     } catch (err) {
@@ -176,6 +180,33 @@ export default function Settings() {
     }
   }
 
+  // 删除知识库:后端移除 config 登记 + 删 kb/ 目录。删当前库由后端拦(400),前端再保险禁用。
+  const deleteVault = async (vaultPath: string) => {
+    if (busy) return
+    if (!window.confirm('删除知识库将移除其目录与配置登记,且不可恢复。确认删除?')) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await fetch('/api/vault/delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path: vaultPath }),
+      })
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string }
+        setError(data.error ?? `HTTP ${res.status}`)
+      } else {
+        setNotice('已删除知识库')
+        void load()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // 保存按钮:apiKey/baseUrl/model 任一空则禁用(Q4.1d:UI 提前拦)
   const canSaveLlm = saving || !apiKeyInput.trim() || !baseUrlInput.trim() || !modelInput.trim()
 
@@ -192,72 +223,120 @@ export default function Settings() {
         {/* ── LLM 配置 ── */}
         <section className="settings-section">
           <h2 className="settings-section-title">LLM 配置</h2>
-          <p className="settings-hint">
-            {configStatus?.hasApiKey
-              ? '当前已配置 API key(出于安全不回显明文,每次保存需重新填入)。'
-              : '尚未配置 API key,请填入以下字段后保存。'}
-          </p>
 
-          {/* api 规范 dropdown + tooltip */}
-          <div className="settings-row">
+          {/* api 规范:自定义下拉(替换原生 select,展开列表也走设计 token) */}
+          <div className="settings-field">
             <label className="settings-label" htmlFor="llm-api">
               API 规范
             </label>
-            <select
-              id="llm-api"
-              className="settings-input"
-              value={apiInput}
-              onChange={(e) => setApiInput(e.target.value)}
-            >
-              {specs
-                .filter((s) => exposed.includes(s.id))
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-            </select>
-            <span
-              className="settings-tooltip"
-              role="img"
-              aria-label="仅展示常用规范。需用 bedrock/google-vertex 等?编辑 config.json 的 exposedApiSpecs 字段,可选值见 pi KnownApi。"
-              title="仅展示常用规范。需用 bedrock/google-vertex 等?编辑 config.json 的 exposedApiSpecs 字段,可选值见 pi KnownApi。"
-            >
-              ⓘ
-            </span>
+            <div className="settings-control">
+              <Select
+                id="llm-api"
+                ariaLabel="API 规范"
+                value={apiInput}
+                options={specs
+                  .filter((s) => exposed.includes(s.id))
+                  .map((s) => ({ value: s.id, label: s.label }))}
+                onChange={setApiInput}
+              />
+            </div>
           </div>
 
-          <div className="settings-row">
-            <input
-              className="settings-input"
-              type="text"
-              placeholder="baseUrl(如 https://api.openai.com/v1,无需 /chat/completions)"
-              value={baseUrlInput}
-              onChange={(e) => setBaseUrlInput(e.target.value)}
-              autoComplete="off"
-            />
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="llm-base">
+              Base URL
+            </label>
+            <div className="settings-control">
+              <input
+                id="llm-base"
+                className="settings-input"
+                type="text"
+                placeholder="https://api.openai.com/v1"
+                value={baseUrlInput}
+                onChange={(e) => setBaseUrlInput(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
           </div>
 
-          <div className="settings-row">
-            <input
-              className="settings-input"
-              type="text"
-              placeholder="model(如 gpt-4o)"
-              value={modelInput}
-              onChange={(e) => setModelInput(e.target.value)}
-              autoComplete="off"
-            />
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="llm-model">
+              模型
+            </label>
+            <div className="settings-control">
+              <input
+                id="llm-model"
+                className="settings-input"
+                type="text"
+                placeholder="gpt-4o"
+                value={modelInput}
+                onChange={(e) => setModelInput(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
           </div>
 
-          <div className="settings-row">
-            <input
-              className="settings-input"
-              type="password"
-              placeholder="apiKey"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              autoComplete="off"
-            />
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="llm-key">
+              API Key
+            </label>
+            <div className="settings-control">
+              <div className="settings-input-wrap">
+                <input
+                  id="llm-key"
+                  className="settings-input settings-input-key"
+                  type={showKey ? 'text' : 'password'}
+                  placeholder={configStatus?.apiKeyMasked ? configStatus.apiKeyMasked : 'apiKey'}
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="settings-input-icon"
+                  onClick={() => setShowKey((s) => !s)}
+                  aria-label={showKey ? '隐藏 API key' : '显示 API key'}
+                  aria-pressed={showKey}
+                >
+                  {showKey ? (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                      <line x1="2" y1="2" x2="22" y2="22" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-actions">
             <button
               type="button"
               className="settings-btn primary"
@@ -285,14 +364,24 @@ export default function Settings() {
                     <code className="vault-path">{v.path}</code>
                     {isCurrent && <span className="vault-tag">当前</span>}
                   </div>
-                  <button
-                    type="button"
-                    className="settings-btn"
-                    onClick={() => void switchVault(v.path)}
-                    disabled={isCurrent || ingestActive || busy}
-                  >
-                    切换
-                  </button>
+                  <div className="vault-actions">
+                    <button
+                      type="button"
+                      className="settings-btn"
+                      onClick={() => void switchVault(v.path)}
+                      disabled={isCurrent || ingestActive || busy}
+                    >
+                      切换
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-btn"
+                      onClick={() => void deleteVault(v.path)}
+                      disabled={isCurrent || busy}
+                    >
+                      删除
+                    </button>
+                  </div>
                 </li>
               )
             })}
@@ -300,26 +389,29 @@ export default function Settings() {
           </ul>
 
           {/* ── 新建 Vault ── */}
-          <div className="settings-row new-vault">
-            <input
-              className="settings-input"
-              type="text"
-              placeholder="新知识库名称(如:工作)"
-              value={newVaultName}
-              onChange={(e) => setNewVaultName(e.target.value)}
-            />
-            <button
-              type="button"
-              className="settings-btn"
-              onClick={() => void createVault()}
-              disabled={busy || !newVaultName.trim()}
-            >
-              新建
-            </button>
+          <div className="settings-field new-vault">
+            <label className="settings-label" htmlFor="new-vault-name">
+              新建知识库
+            </label>
+            <div className="settings-control">
+              <input
+                id="new-vault-name"
+                className="settings-input"
+                type="text"
+                placeholder="输入知识库名称"
+                value={newVaultName}
+                onChange={(e) => setNewVaultName(e.target.value)}
+              />
+              <button
+                type="button"
+                className="settings-btn"
+                onClick={() => void createVault()}
+                disabled={busy || !newVaultName.trim()}
+              >
+                新建
+              </button>
+            </div>
           </div>
-          <p className="settings-hint">
-            新建的知识库从样板复制结构,不会自动切换;点击列表"切换"以打开。
-          </p>
         </section>
       </div>
     </div>

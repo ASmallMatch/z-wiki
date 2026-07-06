@@ -1,12 +1,13 @@
-import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react'
-import { useChat, type ChatMessage, type Segment } from '../hooks/useChat'
+import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type ChatMessage, type Segment, useChat } from '../hooks/useChat'
 
 /** 把工具入参提炼成一行可读摘要;read/edit/write 显示路径,其它工具退化成首个字符串字段。 */
 function describeArgs(tool: string, args: unknown): string | null {
   if (!args || typeof args !== 'object') return null
   const a = args as Record<string, unknown>
   // pi 的 read/edit/write 兼容 file_path 与 path 两种参数名
-  const filePath = typeof a.file_path === 'string' ? a.file_path : typeof a.path === 'string' ? a.path : null
+  const filePath =
+    typeof a.file_path === 'string' ? a.file_path : typeof a.path === 'string' ? a.path : null
   if (filePath && (tool === 'read' || tool === 'edit' || tool === 'write')) {
     const parts = [filePath]
     if (typeof a.offset === 'number') parts.push(`offset=${a.offset}`)
@@ -67,12 +68,12 @@ function MessageBubble({ msg, typing }: { msg: ChatMessage; typing?: boolean }) 
           <div className="chat-pending">…</div>
         ) : (
           <>
-            {segments.map(seg =>
+            {segments.map((seg) =>
               seg.kind === 'text' ? (
                 <TextBlock key={seg.id} text={seg.text} />
               ) : (
                 <ToolChip key={seg.id} seg={seg} />
-              )
+              ),
             )}
             {typing && (
               <span className="chat-typing">
@@ -121,48 +122,101 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
     setInput('')
   }
 
+  // 输入框可向上拖拽扩高(最高半屏):手柄在 composer 顶部,mousedown 后全局 mousemove
+  // 改 height,向上拖(delta<0)增大,clamp [单行最小, 半屏]。按钮 absolute 在 composer 右下,
+  // composer 底部固定、向上扩展,故按钮视觉位置始终不动。
+  const [composerHeight, setComposerHeight] = useState<number | null>(null)
+  const composerRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null)
+  const minHRef = useRef(32)
+
+  // 测量单行自然高度作拖拽下限(首次 mount,此时 composerHeight=null 用 rows=1 撑出)
+  useEffect(() => {
+    if (composerRef.current) minHRef.current = composerRef.current.offsetHeight
+  }, [])
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return
+      const delta = dragRef.current.startY - e.clientY
+      const maxH = window.innerHeight * 0.5
+      const h = Math.max(minHRef.current, Math.min(maxH, dragRef.current.startH + delta))
+      setComposerHeight(h)
+    }
+    const onUp = () => {
+      dragRef.current = null
+      document.body.classList.remove('chat-resizing')
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
   return (
     <div className="chat-panel">
       <div className="chat-drawer-header">
-        <span className="chat-status">
-          {connected ? '● 已连接' : '○ 未连接'}
-        </span>
-        <button
-          type="button"
-          className="chat-drawer-close"
-          onClick={onClose}
-          aria-label="关闭对话"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <span className="chat-status">{connected ? '● 已连接' : '○ 未连接'}</span>
+        <button type="button" className="chat-drawer-close" onClick={onClose} aria-label="关闭对话">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
       <div className="chat-messages" ref={scrollRef}>
-        {messages.length === 0 ? (
-          <div className="chat-empty">向知识库智能体提问,它会按工作流检索 wiki 并回答。</div>
-        ) : (
-          (() => {
-            // 找出最后一个 Fairy✨消息,用于 typing indicator
-            let lastId: string | null = null
-            for (let i = messages.length - 1; i >= 0; i--) {
-              if (messages[i].role === 'assistant') { lastId = messages[i].id; break }
-            }
-            return messages.map(m => (
-              <MessageBubble key={m.id} msg={m} typing={streaming && m.id === lastId} />
-            ))
-          })()
-        )}
+        {messages.length === 0
+          ? null
+          : (() => {
+              // 找出最后一个 Fairy✨消息,用于 typing indicator
+              let lastId: string | null = null
+              for (let i = messages.length - 1; i >= 0; i--) {
+                if (messages[i].role === 'assistant') {
+                  lastId = messages[i].id
+                  break
+                }
+              }
+              return messages.map((m) => (
+                <MessageBubble key={m.id} msg={m} typing={streaming && m.id === lastId} />
+              ))
+            })()}
       </div>
-      <div className="chat-input-row">
+      <div
+        className="chat-input-row"
+        ref={composerRef}
+        style={composerHeight ? { height: `${composerHeight}px` } : undefined}
+      >
+        <div
+          className="chat-resize-handle"
+          aria-label="拖动调整输入框高度"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            if (!composerRef.current) return
+            dragRef.current = {
+              startY: e.clientY,
+              startH: composerRef.current.offsetHeight,
+            }
+            document.body.classList.add('chat-resizing')
+          }}
+        />
         <textarea
           className="chat-input"
-          placeholder={connected ? '输入消息,Enter 发送,Shift+Enter 换行' : '正在连接...'}
+          placeholder={connected ? '输入消息,Enter 发送' : '正在连接...'}
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
-          rows={2}
+          rows={1}
           disabled={!connected || streaming}
         />
         <input
@@ -172,21 +226,23 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
           onChange={handleFile}
           style={{ display: 'none' }}
         />
-        <button
-          className="chat-upload"
-          onClick={() => fileRef.current?.click()}
-          disabled={!connected}
-          title="上传 .md 到 raw/,自动编译"
-        >
-          上传
-        </button>
-        <button
-          className="chat-send"
-          onClick={submit}
-          disabled={!connected || streaming || !input.trim()}
-        >
-          {streaming ? '回复中' : '发送'}
-        </button>
+        <div className="chat-input-actions">
+          <button
+            className="chat-upload"
+            onClick={() => fileRef.current?.click()}
+            disabled={!connected}
+            title="上传 .md 到 raw/,自动编译"
+          >
+            上传
+          </button>
+          <button
+            className="chat-send"
+            onClick={submit}
+            disabled={!connected || streaming || !input.trim()}
+          >
+            {streaming ? '回复中' : '发送'}
+          </button>
+        </div>
       </div>
     </div>
   )

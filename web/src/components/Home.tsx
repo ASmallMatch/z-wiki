@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { PageMeta } from '../hooks/useData'
-import BookShelf3D from './BookShelf3D'
 import BottomDrawer from './BottomDrawer'
+
+// three + gsap 较重，懒加载拆出独立 chunk，首屏先渲染 hero 再异步挂载书架
+const BookShelf3D = lazy(() => import('./BookShelf3D'))
 
 interface HomeProps {
   pages: PageMeta[]
@@ -83,7 +85,9 @@ export default function Home({ pages }: HomeProps) {
       </section>
 
       <div className="home-shelf-area">
-        <BookShelf3D pages={pages} onBookClick={onBookClick} />
+        <Suspense fallback={<div className="shelf-loading" />}>
+          <BookShelf3D pages={pages} onBookClick={onBookClick} />
+        </Suspense>
         <BottomDrawer
           pages={pages}
           isOpen={drawerOpen}
