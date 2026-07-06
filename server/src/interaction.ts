@@ -99,28 +99,6 @@ export async function createInteraction(
     }
   }
 
-  // ── text_delta 攒批:模型 token 级流式太碎,按时间窗口合并后再推 WS ──
-  const FLUSH_MS = 50
-  type DeltaBuf = { text: string; timer: NodeJS.Timeout | null }
-  function getDeltaBuf(socket: WebSocket): DeltaBuf {
-    // 挂在 socket 上,per-connection 隔离;类型用任意键绕过 WS 类型
-    const s = socket as WebSocket & { __deltaBuf?: DeltaBuf }
-    if (!s.__deltaBuf) s.__deltaBuf = { text: '', timer: null }
-    return s.__deltaBuf
-  }
-  function flushDelta(socket: WebSocket): void {
-    const buf = getDeltaBuf(socket)
-    if (buf.timer) {
-      clearTimeout(buf.timer)
-      buf.timer = null
-    }
-    if (!buf.text) return
-    const text = buf.text
-    buf.text = ''
-    socket.send(JSON.stringify({ type: 'text_delta', text }))
-    app.log.debug({ chars: text.length, text }, 'text flushed')
-  }
-
   /** 将 pi 的 AgentSessionEvent 转成前端可消费的简化消息,推给 WS。 */
   function relayEvent(socket: WebSocket, event: unknown): void {
     const e = event as {
@@ -131,36 +109,23 @@ export async function createInteraction(
       args?: unknown
       isError?: boolean
     }
-    // text_delta 逐条太碎,攒批 flush 时由 flushDelta 打汇总日志
-
     switch (e.type) {
       case 'message_update': {
         const ae = e.assistantMessageEvent
         if (ae?.type === 'text_delta' && ae.delta) {
-          const buf = getDeltaBuf(socket)
-          buf.text += ae.delta
-          // 已有定时器在跑就续用;否则开一个 50ms 窗口
-          if (!buf.timer) {
-            buf.timer = setTimeout(() => flushDelta(socket), FLUSH_MS)
-          }
-        } else {
-          // text_end 等子事件:先冲掉缓冲的 delta,保证顺序
-          flushDelta(socket)
+          socket.send(JSON.stringify({ type: 'text_delta', text: ae.delta }))
         }
         break
       }
       case 'tool_execution_start':
-        flushDelta(socket)
         socket.send(JSON.stringify({ type: 'tool_start', tool: e.toolName, args: e.args }))
         break
       case 'tool_execution_end':
-        flushDelta(socket)
         socket.send(
           JSON.stringify({ type: 'tool_end', tool: e.toolName, error: Boolean(e.isError) }),
         )
         break
       case 'agent_end':
-        flushDelta(socket)
         socket.send(JSON.stringify({ type: 'done' }))
         // 闭环刷新:agent 写完 wiki/output 后自动 build,有变更推 kb_updated
         void triggerBuild(socket)
@@ -274,12 +239,6 @@ export async function createInteraction(
 
     socket.on('close', () => {
       chatSessions.delete(socket)
-      // 清理未 flush 的 delta 缓冲与定时器,避免泄漏/迟到写入
-      const buf = getDeltaBuf(socket)
-      if (buf.timer) clearTimeout(buf.timer)
-      buf.timer = null
-      buf.text = ''
-
       // 释放会话,移除监听。落盘文件由 pi 的 lazy-flush 策略管理:
       // 仅在出现 assistant 消息时才真正写盘,空会话不会产生文件,无需清理。
       session.dispose()
