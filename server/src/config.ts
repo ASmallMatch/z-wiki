@@ -23,6 +23,8 @@ export interface ConfigJson {
   api: string
   /** 模型 id(如 ark-code-latest / gpt-4o)。空 = 未配置。 */
   model: string
+  /** 上下文窗口大小(tokens,写入 models.json 的 contextWindow)。可选,缺省/非法回退 DEFAULT_CONTEXT_WINDOW(128000)。 */
+  contextWindow?: number
   /** UI 暴露的 api 规范子集(默认 ['openai-completions','anthropic-messages'],见 apiSpecs.ts)。 */
   exposedApiSpecs?: string[]
   /** 已知 Vault 列表(切库用,首版可空)。 */
@@ -52,7 +54,7 @@ export interface ModelsJson {
 export const PROVIDER_KEY = 'custom'
 
 const DEFAULT_API = 'openai-completions'
-const DEFAULT_CONTEXT_WINDOW = 128000
+export const DEFAULT_CONTEXT_WINDOW = 128000
 
 /**
  * 空壳配置默认值(与 config.example.json 对齐)。readConfig 在 config.json 不存在时返回此值,
@@ -82,12 +84,13 @@ export function maskApiKey(key: string): string {
 }
 
 /**
- * 纯函数:输入 config 的 baseUrl/api/model,输出符合 pi 格式的 models.json 内容(ADR-0004 D1)。
+ * 纯函数:输入 config 的 baseUrl/api/model/contextWindow,输出符合 pi 格式的 models.json 内容(ADR-0004 D1)。
  * provider key 固定 'custom'(D4)。model 空 → models 数组空(空壳能起,resolveModel 后续抛错)。
+ * contextWindow 缺省/undefined → 回退 DEFAULT_CONTEXT_WINDOW(128000,readConfig 已校验非法值为 undefined)。
  * 启动时由 buildAgentContext 调用,结果写入 agentDir/models.json 喂 ModelRegistry。
  */
 export function generateModelsJson(
-  config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model'>,
+  config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model' | 'contextWindow'>,
 ): ModelsJson {
   return {
     providers: {
@@ -96,7 +99,9 @@ export function generateModelsJson(
         // (未规范化)来,generateModelsJson 都保证喂给 pi 的是干净值,避免 SDK 双拼 suffix。
         baseUrl: normalizeBaseUrl(config.baseUrl, config.api),
         api: config.api,
-        models: config.model ? [{ id: config.model, contextWindow: DEFAULT_CONTEXT_WINDOW }] : [],
+        models: config.model
+          ? [{ id: config.model, contextWindow: config.contextWindow ?? DEFAULT_CONTEXT_WINDOW }]
+          : [],
       },
     },
   }
@@ -150,6 +155,19 @@ export function readConfig(configPath: string): ConfigJson {
   const exposedApiSpecs = Array.isArray(raw.exposedApiSpecs)
     ? raw.exposedApiSpecs
     : [...DEFAULT_EXPOSED_SPECS]
+  // contextWindow:必须是正整数(number),否则 warn + 回退 undefined(走 generateModelsJson 兜底
+  // 默认 128000)。undefined/缺失 → 保持 undefined。老 config 无此字段正常(新加字段,不抛错)。
+  const contextWindow =
+    typeof raw.contextWindow === 'number' &&
+    Number.isInteger(raw.contextWindow) &&
+    raw.contextWindow > 0
+      ? raw.contextWindow
+      : undefined
+  if (raw.contextWindow !== undefined && contextWindow === undefined) {
+    console.warn(
+      `[z-wiki] config.json 的 contextWindow 非法(${JSON.stringify(raw.contextWindow)}),回退默认 ${DEFAULT_CONTEXT_WINDOW}。`,
+    )
+  }
   // 显式列举 ConfigJson 已知字段,不 ...raw 全保留——避免老 config 的废弃字段(如 provider)
   // 残留进运行时对象 + 被 writeConfig 写回 config.json(ADR-0004 D1 干掉 provider 要彻底)。
   // 字段兜底:老 config 可能缺 baseUrl/apiKey/model(undefined),回退空字符串避免下游 .trim() 抛错。
@@ -158,6 +176,7 @@ export function readConfig(configPath: string): ConfigJson {
     baseUrl: raw.baseUrl ?? '',
     api,
     model: raw.model ?? '',
+    contextWindow,
     exposedApiSpecs,
     vaults: raw.vaults,
     currentVault: raw.currentVault,

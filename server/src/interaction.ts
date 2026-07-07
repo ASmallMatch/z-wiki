@@ -23,7 +23,13 @@ import {
 } from './agentHost.js'
 import { API_SPECS } from './apiSpecs.js'
 import { buildView, type PageMeta } from './buildView.js'
-import { maskApiKey, readConfig, type VaultEntry, writeConfig } from './config.js'
+import {
+  DEFAULT_CONTEXT_WINDOW,
+  maskApiKey,
+  readConfig,
+  type VaultEntry,
+  writeConfig,
+} from './config.js'
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
 
@@ -367,6 +373,7 @@ export async function createInteraction(
       baseUrl: cfg.baseUrl,
       api: cfg.api,
       model: cfg.model,
+      contextWindow: cfg.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
       apiKey: cfg.apiKey,
       hasApiKey: Boolean(cfg.apiKey),
       apiKeyMasked: maskApiKey(cfg.apiKey),
@@ -516,6 +523,7 @@ export async function createInteraction(
       api?: string
       model?: string
       apiKey?: string
+      contextWindow?: number
     }
     // 校验:4 字段都必须是非空字符串(防空 + 防非字符串类型,coding-style 边界校验)
     const required: Array<[unknown, string]> = [
@@ -529,6 +537,16 @@ export async function createInteraction(
         return reply.code(400).send({ error: `需提供 ${name}` })
       }
     }
+    // contextWindow:提供时必须是正整数(前端 input type=number 转 number 发;容 string,Number 兜底)。
+    // undefined → 不覆盖(保留原值);非法 → 400(与 4 字段校验同构)。
+    const contextWindowNum =
+      body.contextWindow === undefined ? undefined : Number(body.contextWindow)
+    if (
+      contextWindowNum !== undefined &&
+      (!Number.isInteger(contextWindowNum) || contextWindowNum <= 0)
+    ) {
+      return reply.code(400).send({ error: 'contextWindow 必须是正整数' })
+    }
 
     // 写 config(writeConfig 规范化 baseUrl),锁内 read-modify-write 后读回规范化值喂 reload
     const updatedCfg = await withFileLock(configPath, async () => {
@@ -537,6 +555,9 @@ export async function createInteraction(
       cfg.api = body.api as string
       cfg.model = body.model as string
       cfg.apiKey = body.apiKey as string
+      if (contextWindowNum !== undefined) {
+        cfg.contextWindow = contextWindowNum
+      }
       writeConfig(configPath, cfg)
       return readConfig(configPath)
     })

@@ -58,6 +58,25 @@ test('generateModelsJson: model 空 → models 数组空(空壳能起)', () => {
   assert.deepEqual(json.providers.custom.models, [])
 })
 
+test('generateModelsJson: contextWindow 自定义值 → 透传到 models.json', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.example.com/v1',
+    api: 'openai-completions',
+    model: 'gpt-4o',
+    contextWindow: 200000,
+  })
+  assert.equal(json.providers.custom.models[0].contextWindow, 200000)
+})
+
+test('generateModelsJson: contextWindow 缺省 → 回退默认 128000', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.example.com/v1',
+    api: 'openai-completions',
+    model: 'gpt-4o',
+  })
+  assert.equal(json.providers.custom.models[0].contextWindow, 128000)
+})
+
 test('readConfig: 文件不存在 → 回退空壳默认值(空壳能起,不抛错;与 config.example.json 等价)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {
@@ -146,6 +165,50 @@ test('readConfig: 缺 exposedApiSpecs → 回退默认值', async () => {
     )
     const cfg = readConfig(cfgPath)
     assert.deepEqual(cfg.exposedApiSpecs, DEFAULT_EXPOSED_SPECS)
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('readConfig: contextWindow 合法正整数 → 透传', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    await fs.writeFile(
+      cfgPath,
+      JSON.stringify({
+        apiKey: 'k',
+        baseUrl: 'https://h/v1',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+        contextWindow: 200000,
+      }),
+      'utf-8',
+    )
+    const cfg = readConfig(cfgPath)
+    assert.equal(cfg.contextWindow, 200000)
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true })
+  }
+})
+
+test('readConfig: contextWindow 非法值(0)→ 回退 undefined(走 generateModelsJson 兜底)', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
+  try {
+    const cfgPath = path.join(tmp, 'config.json')
+    await fs.writeFile(
+      cfgPath,
+      JSON.stringify({
+        apiKey: 'k',
+        baseUrl: 'https://h/v1',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+        contextWindow: 0,
+      }),
+      'utf-8',
+    )
+    const cfg = readConfig(cfgPath)
+    assert.equal(cfg.contextWindow, undefined, '非法 contextWindow(0)应回退 undefined')
   } finally {
     await fs.rm(tmp, { recursive: true, force: true })
   }

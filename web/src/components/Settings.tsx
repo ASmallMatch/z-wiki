@@ -22,6 +22,7 @@ interface ConfigStatus {
   baseUrl: string
   api: string
   model: string
+  contextWindow: number
   apiKey: string
   hasApiKey: boolean
   apiKeyMasked: string
@@ -40,6 +41,7 @@ export default function Settings() {
   const [apiInput, setApiInput] = useState('openai-completions')
   const [baseUrlInput, setBaseUrlInput] = useState('')
   const [modelInput, setModelInput] = useState('')
+  const [contextWindowInput, setContextWindowInput] = useState('')
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [newVaultName, setNewVaultName] = useState('')
@@ -63,6 +65,7 @@ export default function Settings() {
       setConfigStatus(status)
       setBaseUrlInput(status.baseUrl || '')
       setModelInput(status.model || '')
+      setContextWindowInput(String(status.contextWindow ?? 128000))
       setApiKeyInput(status.apiKey || '')
       setIngestActive(((await activeRes.json()) as { active: boolean }).active ?? false)
       const specsData = (await specsRes.json()) as { specs: ApiSpecEntry[]; exposed: string[] }
@@ -106,6 +109,7 @@ export default function Settings() {
           api: apiInput,
           baseUrl: baseUrlInput,
           model: modelInput,
+          contextWindow: Number(contextWindowInput),
           apiKey: apiKeyInput,
         }),
       })
@@ -207,8 +211,15 @@ export default function Settings() {
     }
   }
 
-  // 保存按钮:apiKey/baseUrl/model 任一空则禁用(Q4.1d:UI 提前拦)
-  const canSaveLlm = saving || !apiKeyInput.trim() || !baseUrlInput.trim() || !modelInput.trim()
+  // 保存按钮:apiKey/baseUrl/model 空 或 contextWindow 非正整数则禁用(Q4.1d:UI 提前拦)
+  const contextWindowNum = Number(contextWindowInput)
+  const canSaveLlm =
+    saving ||
+    !apiKeyInput.trim() ||
+    !baseUrlInput.trim() ||
+    !modelInput.trim() ||
+    !Number.isInteger(contextWindowNum) ||
+    contextWindowNum <= 0
 
   return (
     <div className="settings">
@@ -271,6 +282,24 @@ export default function Settings() {
                 placeholder="gpt-4o"
                 value={modelInput}
                 onChange={(e) => setModelInput(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="llm-context">
+              上下文窗口
+            </label>
+            <div className="settings-control">
+              <input
+                id="llm-context"
+                className="settings-input"
+                type="number"
+                min="1"
+                placeholder="128000"
+                value={contextWindowInput}
+                onChange={(e) => setContextWindowInput(e.target.value)}
                 autoComplete="off"
               />
             </div>

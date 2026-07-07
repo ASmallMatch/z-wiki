@@ -3,6 +3,7 @@
   "baseUrl": "",
   "api": "openai-completions",
   "model": "",
+  "contextWindow": 128000,
   "exposedApiSpecs": ["openai-completions", "anthropic-messages"],
   "vaults": [],
   "currentVault": "",

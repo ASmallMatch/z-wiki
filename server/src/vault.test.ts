@@ -256,6 +256,57 @@ test('POST /api/config/llm: baseUrl 规范化(写入时剥尾部 suffix)', async
   }
 })
 
+test('POST /api/config/llm: contextWindow 透传到 config + models.json', async () => {
+  const vault = await makeVault({})
+  const cfgPath = path.join(vault.root, 'config.json')
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/config/llm',
+      payload: {
+        baseUrl: 'https://api.example.com/v1',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+        apiKey: 'k',
+        contextWindow: 200000,
+      },
+    })
+    assert.equal(res.statusCode, 200)
+    const cfg = JSON.parse(await fs.readFile(cfgPath, 'utf-8')) as { contextWindow: number }
+    assert.equal(cfg.contextWindow, 200000)
+    const modelsJson = JSON.parse(
+      await fs.readFile(path.join(vault.agentDir, 'models.json'), 'utf-8'),
+    ) as { providers: { custom: { models: Array<{ contextWindow: number }> } } }
+    assert.equal(modelsJson.providers.custom.models[0].contextWindow, 200000)
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('POST /api/config/llm: 非法 contextWindow(0)→ 400(不重载)', async () => {
+  const vault = await makeVault({})
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/config/llm',
+      payload: {
+        baseUrl: 'https://h/v1',
+        api: 'openai-completions',
+        model: 'gpt-4o',
+        apiKey: 'k',
+        contextWindow: 0,
+      },
+    })
+    assert.equal(res.statusCode, 400)
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
 test('GET /api/specs: 返回 api 规范 manifest + exposed 子集', async () => {
   const vault = await makeVault({})
   const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
@@ -286,6 +337,8 @@ test('GET /api/config/status: 返回 baseUrl/api/model + hasApiKey + exposedApiS
     assert.equal(body.baseUrl, 'https://ark.cn-beijing.volces.com/api/coding')
     assert.equal(body.api, 'anthropic-messages')
     assert.equal(body.model, 'ark-code-latest')
+    // contextWindow:CONFIG_JSON 无此字段 → 回退默认 128000(status 路由 ?? DEFAULT_CONTEXT_WINDOW)
+    assert.equal(body.contextWindow, 128000)
     assert.equal(body.hasApiKey, true)
     // apiKey 明文回传(ADR-0003 D3.1 威胁模型:loopback 单用户,掩码只防肩窥非安全边界)
     assert.equal(body.apiKey, 'test-key')
