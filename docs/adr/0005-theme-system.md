@@ -13,6 +13,8 @@ z-wiki 此前只有一套深色工业档案风主题(CSS 头注释称 "Archive V
 
 ### D1: 双主题命名与调色板 —— Archive(暗)/ Draft(浅冷蓝图纸),共享靛青 accent
 
+> **[2026-07-07 superseded by ADR-0006 D1']** Draft accent 已改陶土橙 `#d97757`,不再与 Archive 同源。本条的"共享靛青 accent / 切换时品牌色不断裂"结论已废止。Archive 靛青不变。详见 ADR-0006。
+
 - **Archive** = 现有深色主题,沿用不动,作为默认。
 - **Draft** = 新浅色主题,走"冷蓝图纸"方向:浅灰冷底 + 深石板字 + 原子化空心边框。
 - 两主题 **共享同一靛青 accent**(`#6b8fc7` 系)。理由:切换时品牌色不断裂,且 accent 是"档案/图纸"两套基底共同的工作色,不该随明暗变。
@@ -26,6 +28,8 @@ z-wiki 此前只有一套深色工业档案风主题(CSS 头注释称 "Archive V
 这是最小改动:不移动任何现有变量,Archive 视觉零变化,Draft 只是覆盖层。将来加第三主题也只需再加一个 `[data-theme="xxx"]` 块。
 
 ### D3: 书架恒深色展台 —— `--surface-shelf` 不随主题变(DRAFT 下书架区仍深)
+
+> **[2026-07-07 superseded by ADR-0006 D3']** Draft 主题下书架已随主题浅化(展台 `#eeece6` / 书皮 `#e4d1c2` / 陶土色板),`--surface-shelf` 移入 Draft 覆盖块,`BookShelf3D.tsx` 消费 theme prop 换 texture。本条"恒深色展台 / canvas 颜色不改"结论已废止。Archive 下书架仍深。详见 ADR-0006。
 
 首页 3D 书架(`BookShelf3D.tsx`)是 canvas 程序化绘制,颜色**硬编码**(`#12121a`/`#0c0c12`/`#e8ddd0`/靛青封面色板),不走 CSS token。
 
