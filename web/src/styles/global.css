@@ -2349,9 +2349,12 @@ body.home-no-scroll {
   position: relative;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border-light);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
   background: var(--surface);
-  /* 四周内壁 padding:让文字/按钮与边框分离不挤;top 略大给顶部 resize handle 呼吸空间 */
+  /* 作为对话框框体悬浮在 panel 内:外 margin 与消息区/抽屉边缘留白,
+     内 padding 让文字与按钮与框边分离;top 略大给顶部 resize handle 呼吸空间 */
+  margin: var(--sp-2) var(--sp-3) var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
 }
 .chat-input {
