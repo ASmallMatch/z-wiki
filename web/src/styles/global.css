@@ -97,8 +97,7 @@
 }
 
 /* ── Draft 主题（浅色：暖纸陶土，对齐 Claude 文档浅色）─────────
-   仅覆盖颜色 token；共享 token（font/spacing/radius/size）与
-   --surface-shelf（书架恒深色展台，不随主题变）继承 :root，不动。
+   仅覆盖颜色 token；共享 token（font/spacing/radius/size）继承 :root，不动。
    配色取自 Claude 文档 --background-light(#fdfdf7)/--primary(#0e0e0e)/
    --accent-brand(hsl(15,63.1%,59.6%)≈#d97757)+Tailwind stone 调色板。
    注意：浅深 accent 不同源——深色 Archive 仍靛青 #6b8fc7，切换主题时
@@ -111,6 +110,7 @@
   --surface-hover: #e8e6df;
   --surface-code: #e8e6df;
   --surface-nav: rgba(240, 239, 234, 0.88);
+  --surface-shelf: #eeece6; /* 书架展台：manilla 信封色，随主题浅化(ADR-0006 D3'，推翻 0005 D3 恒深) */
   /* 文字：近黑暖调（stone-900 正文 / Claude --primary 标题），层级靠明度 */
   --text: #1c1917;
   --text-bright: #0e0e0e;
