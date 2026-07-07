@@ -256,42 +256,44 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
           onChange={handleFile}
           style={{ display: 'none' }}
         />
+        {/* 状态行始终渲染:无数据(未发消息/切库重置)时数字兜底 0、模型名占位 —,
+            避免状态行忽隐忽现造成布局抖动 */}
         <div className="chat-composer-status">
           <div className="chat-status-left">
-            {turnStats && (
-              <span className="chat-turn-tokens" title="本轮 token(输入/输出/缓存命中率)">
-                <span className="chat-token-pair">
-                  <Icon d="M12 19V5 M5 12l7-7 7 7" />
-                  {fmtTokens(turnStats.input)}
-                </span>
-                <span className="chat-token-pair">
-                  <Icon d="M12 5v14 M5 12l7 7 7-7" />
-                  {fmtTokens(turnStats.output)}
-                </span>
-                <span className="chat-token-pair">
-                  <Icon d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  {cacheHitRate(turnStats)}%
-                </span>
+            <span className="chat-turn-tokens" title="本轮 token(输入/输出/缓存命中率)">
+              <span className="chat-token-pair">
+                <Icon d="M12 19V5 M5 12l7-7 7 7" />
+                {fmtTokens(turnStats?.input ?? 0)}
               </span>
-            )}
+              <span className="chat-token-pair">
+                <Icon d="M12 5v14 M5 12l7 7 7-7" />
+                {fmtTokens(turnStats?.output ?? 0)}
+              </span>
+              <span className="chat-token-pair">
+                <Icon d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                {turnStats ? cacheHitRate(turnStats) : 0}%
+              </span>
+            </span>
           </div>
           <div className="chat-status-right">
-            {model && (
+            {model ? (
               <span className="chat-model-name" title={`${model.provider} · ${model.id}`}>
                 {model.name}
               </span>
-            )}
-            {contextUsage?.percent != null && (
-              <span className="chat-ctx" title={`上下文 ${Math.round(contextUsage.percent)}%`}>
-                <span className="chat-ctx-track">
-                  <span
-                    className="chat-ctx-fill"
-                    style={{ width: `${Math.min(100, contextUsage.percent)}%` }}
-                  />
-                </span>
-                <span className="chat-ctx-pct">{Math.round(contextUsage.percent)}%</span>
+            ) : (
+              <span className="chat-model-name" title="未连接">
+                —
               </span>
             )}
+            <span className="chat-ctx" title={`上下文 ${Math.round(contextUsage?.percent ?? 0)}%`}>
+              <span className="chat-ctx-track">
+                <span
+                  className="chat-ctx-fill"
+                  style={{ width: `${Math.min(100, contextUsage?.percent ?? 0)}%` }}
+                />
+              </span>
+              <span className="chat-ctx-pct">{Math.round(contextUsage?.percent ?? 0)}%</span>
+            </span>
             <button
               className="chat-upload"
               onClick={() => fileRef.current?.click()}
