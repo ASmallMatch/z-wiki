@@ -1978,10 +1978,10 @@ body.home-no-scroll {
 .header-chat-btn {
   margin-left: var(--sp-4);
   padding: var(--sp-1) var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: transparent;
-  color: var(--text-faint);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-pill);
+  background: var(--surface-alt);
+  color: var(--text-muted);
   cursor: pointer;
   font-family: var(--mono);
   font-size: var(--fs-xs);
@@ -1993,8 +1993,9 @@ body.home-no-scroll {
     background 0.15s;
 }
 .header-chat-btn:hover {
-  color: var(--text-bright);
-  border-color: var(--rule);
+  color: var(--accent-bright);
+  border-color: var(--accent);
+  background: var(--accent-bg);
 }
 .header-chat-btn.active {
   color: var(--accent-bright);
@@ -2255,8 +2256,8 @@ body.home-no-scroll {
   gap: var(--sp-1);
 }
 .chat-typing-dot {
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--text-faint);
   flex-shrink: 0;
@@ -2729,7 +2730,7 @@ body.chat-resizing {
   width: 52px;
   height: 28px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent-border);
   border-radius: var(--r-pill);
   background: var(--surface-alt);
   color: var(--text-faint);
