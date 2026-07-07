@@ -189,6 +189,10 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
   return (
     <div className="chat-panel">
       <div className="chat-drawer-header">
+        <div className="chat-conn" title={connected ? '已连接' : '未连接'}>
+          <span className={`chat-conn-dot ${connected ? 'on' : 'off'}`} />
+          <span className="chat-conn-label">{connected ? '已连接' : '未连接'}</span>
+        </div>
         <button type="button" className="chat-drawer-close" onClick={onClose} aria-label="关闭对话">
           <svg
             width="18"
