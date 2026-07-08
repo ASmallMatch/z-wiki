@@ -2,12 +2,18 @@
 // 切片 04:路径切到 UserDataDir(ADR-0003 D3),首次启动从 bundle 复制 kb_example + 铺放 rg/fd(D4/D8)。
 // 依赖方向单向(D9):只 import createServer,不深入 server 内部模块。
 import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DIR + PI_OFFLINE(见 env.ts 注释)
-import { app, BrowserWindow, shell } from 'electron'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { createServer } from '@z-wiki/server'
 import { resolveDesktopPaths } from './paths.js'
 import { ensureFirstRun } from './firstRun.js'
 import { ensureToolBins } from './toolBins.js'
 import { loadWindowBounds, saveWindowBounds } from './windowState.js'
+
+// preload.js 与 main.js 同在 dist/(tsc 编译 ESM,__dirname 用 import.meta.url 推导)。
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const preloadPath = path.join(__dirname, 'preload.cjs')
 
 let interaction: Awaited<ReturnType<typeof createServer>> | null = null
 let mainWindow: BrowserWindow | null = null
@@ -29,6 +35,10 @@ async function bootstrap(): Promise<void> {
   ensureFirstRun(paths)
   // 铺放 rg/fd 到 pi 的 getBinDir()(D8),版本不一致才重铺。
   ensureToolBins(paths)
+
+  // 打开 vault 目录(系统文件管理器):前端经 window.desktop.openVault → IPC → shell.openPath。
+  // 只读,不改 fs/config。成功返回空串,失败返回错误字符串,前端回显。
+  ipcMain.handle('vault:open', (_event, vaultPath: string) => shell.openPath(vaultPath))
 
   interaction = await createServer({
     kbRoot: paths.kbRoot,
@@ -53,9 +63,15 @@ async function bootstrap(): Promise<void> {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: preloadPath,
     },
   })
   if (bounds?.maximized) mainWindow.maximize()
+
+  // 诊断:preload 加载/执行失败时 Electron 不打主进程日志,显式监听抓错误。
+  mainWindow.webContents.on('preload-error', (_e, p, error) => {
+    console.error('[preload-error]', p, error?.message ?? error)
+  })
 
   await mainWindow.loadURL(`http://127.0.0.1:${port}/`)
 

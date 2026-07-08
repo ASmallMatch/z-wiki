@@ -156,6 +156,22 @@ export default function Settings() {
     }
   }
 
+  // 打开 vault 目录(系统文件管理器):仅桌面形态有 window.desktop(preload 注入)。
+  // dev 形态(浏览器)按钮已条件渲染隐藏,此处防御性 return。
+  const openVault = async (vaultPath: string) => {
+    if (!window.desktop) return
+    setBusy(true)
+    setError(null)
+    try {
+      const err = await window.desktop.openVault(vaultPath)
+      if (err) setError(`打开失败:${err}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const switchVault = async (vaultPath: string) => {
     if (ingestActive || vaultPath === currentVault) return
     setBusy(true)
@@ -459,6 +475,16 @@ export default function Settings() {
                     {isCurrent && <span className="vault-tag">当前</span>}
                   </div>
                   <div className="vault-actions">
+                    {window.desktop && (
+                      <button
+                        type="button"
+                        className="settings-btn"
+                        onClick={() => void openVault(v.path)}
+                        disabled={busy}
+                      >
+                        打开
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="settings-btn"
