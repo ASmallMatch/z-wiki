@@ -1,5 +1,6 @@
-// fetch-tool-bins.ts — 开发期脚本:从 GitHub releases 下载 rg/fd 二进制,
-// 解压提取,放进 desktop/resources/bin/<platform>-<arch>/(ADR-0003 D8 bundle 模板)。
+// fetch-tool-bins.ts - 开发期脚本:从 GitHub releases 下载 rg/fd/pandoc 二进制,
+// 解压提取,放进 desktop/resources/bin/<platform>-<arch>/(ADR-0003 D8 bundle 模板 +
+// ADR-0007 决策 3 pandoc 桌面内置)。
 // 桌面 app 首次启动从此目录复制到 UserDataDir/.pi/agent/bin/。
 //
 // 用法:tsx scripts/fetch-tool-bins.ts [--platform <p>] [--arch <a>] [--all]
@@ -16,15 +17,17 @@ import process from 'node:process'
 // 版本号(可按需升级;改后首次启动会因 version.json 不一致而重新铺放)。
 const RG_VERSION = '14.1.1'
 const FD_VERSION = '10.1.0'
+// pandoc 版本:需与 server/src/pandocManager.ts 的 PANDOC_VERSION 保持一致(开发形态下载同版本)。
+const PANDOC_VERSION = '3.10'
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '..')
 const OUT_ROOT = path.join(REPO_ROOT, 'desktop', 'resources', 'bin')
 
 interface ToolSpec {
-  tool: 'rg' | 'fd'
+  tool: 'rg' | 'fd' | 'pandoc'
   repo: string
   version: string
-  // tagPrefix: rg 无 v 前缀,fd 有 v 前缀(与 pi tools-manager 一致)。
+  // tagPrefix: rg 无 v 前缀,fd 有 v 前缀(与 pi tools-manager 一致),pandoc 无 v 前缀。
   tagPrefix: string
   assetName: (plat: string, arch: string) => string | null
   // 解压后二进制在 archive 内的相对路径(用于提取)。
@@ -63,6 +66,26 @@ const TOOLS: ToolSpec[] = [
       return null
     },
     binaryInArchive: (plat) => (plat === 'win32' ? 'fd.exe' : 'fd'),
+  },
+  {
+    tool: 'pandoc',
+    repo: 'jgm/pandoc',
+    version: PANDOC_VERSION,
+    tagPrefix: '',
+    assetName: (plat, arch) => {
+      if (plat === 'linux') {
+        const a = arch === 'arm64' ? 'arm64' : 'amd64'
+        return `pandoc-${PANDOC_VERSION}-linux-${a}.tar.gz`
+      }
+      if (plat === 'darwin') {
+        const a = arch === 'arm64' ? 'arm64' : 'x86_64'
+        return `pandoc-${PANDOC_VERSION}-${a}-macOS.zip`
+      }
+      // pandoc 官方只发 windows-x86_64;arm64 windows 走 x86_64 emulation。
+      if (plat === 'win32') return `pandoc-${PANDOC_VERSION}-windows-x86_64.zip`
+      return null
+    },
+    binaryInArchive: (plat) => (plat === 'win32' ? 'pandoc.exe' : 'pandoc'),
   },
 ]
 
@@ -124,7 +147,7 @@ function findBinary(root: string, name: string): string {
 async function fetchOne(plat: string, arch: string): Promise<void> {
   const outDir = path.join(OUT_ROOT, `${plat}-${arch}`)
   mkdirSync(outDir, { recursive: true })
-  process.stdout.write(`== ${plat}-${arch} → ${outDir}\n`)
+  process.stdout.write(`== ${plat}-${arch} -> ${outDir}\n`)
   for (const spec of TOOLS) {
     const asset = spec.assetName(plat, arch)
     if (!asset) {
@@ -147,7 +170,7 @@ async function fetchOne(plat: string, arch: string): Promise<void> {
   }
   writeFileSync(
     path.join(outDir, 'version.json'),
-    JSON.stringify({ rg: RG_VERSION, fd: FD_VERSION }, null, 2),
+    JSON.stringify({ rg: RG_VERSION, fd: FD_VERSION, pandoc: PANDOC_VERSION }, null, 2),
     'utf-8',
   )
 }

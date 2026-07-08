@@ -48,8 +48,15 @@ async function makePaths(): Promise<{ paths: DesktopPaths; cleanup: () => Promis
 }
 
 test('桌面首次启动:空 UserDataDir → 首个 Vault + rg/fd + config.json + server 起来', async (t) => {
-  if (!existsSync(REAL_TOOL_BINS)) {
-    t.skip('未跑 tsx scripts/fetch-tool-bins.ts,跳过端到端验证')
+  const rgName = process.platform === 'win32' ? 'rg.exe' : 'rg'
+  const fdName = process.platform === 'win32' ? 'fd.exe' : 'fd'
+  const pandocName = process.platform === 'win32' ? 'pandoc.exe' : 'pandoc'
+  // bundle 需含 rg/fd/pandoc;未跑 fetch 脚本或缺任一二进制则 skip(不 fail)。
+  const hasAllTools = [rgName, fdName, pandocName].every((n) =>
+    existsSync(path.join(REAL_TOOL_BINS, n)),
+  )
+  if (!existsSync(REAL_TOOL_BINS) || !hasAllTools) {
+    t.skip('未跑 tsx scripts/fetch-tool-bins.ts(或 bundle 缺 rg/fd/pandoc),跳过端到端验证')
     return
   }
   const { paths, cleanup } = await makePaths()
@@ -64,11 +71,10 @@ test('桌面首次启动:空 UserDataDir → 首个 Vault + rg/fd + config.json 
     assert.ok(existsSync(path.join(paths.kbRoot, 'index.md')), 'kb/index.md 已复制')
     assert.ok(existsSync(path.join(paths.kbRoot, 'wiki')), 'kb/wiki 目录已复制')
 
-    // rg/fd 已铺放到 pi 的 getBinDir()
-    const rgName = process.platform === 'win32' ? 'rg.exe' : 'rg'
-    const fdName = process.platform === 'win32' ? 'fd.exe' : 'fd'
+    // rg/fd/pandoc 已铺放到 pi 的 getBinDir()(pandoc 经 spawnHook PATH 注入供 bash 调)
     assert.ok(existsSync(path.join(paths.binDir, rgName)), 'rg 已铺放')
     assert.ok(existsSync(path.join(paths.binDir, fdName)), 'fd 已铺放')
+    assert.ok(existsSync(path.join(paths.binDir, pandocName)), 'pandoc 已铺放')
     assert.ok(existsSync(path.join(paths.binDir, '.version.json')), '版本文件已写')
 
     // config.json 写入(空壳 LLM 配置 + currentVault,ADR-0004 D6)

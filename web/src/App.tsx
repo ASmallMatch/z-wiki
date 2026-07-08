@@ -9,6 +9,7 @@ import ChatDrawer from './components/ChatDrawer'
 const Home = lazy(() => import('./components/Home'))
 const Article = lazy(() => import('./components/Article'))
 const Settings = lazy(() => import('./components/Settings'))
+const About = lazy(() => import('./components/About'))
 
 function LoadingState() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
         <Suspense fallback={<LoadingState />}>
           <Routes>
             <Route path="/settings" element={<Settings />} />
+            <Route path="/about" element={<About />} />
             <Route path="/" element={gate ?? <Home pages={pages} />} />
             <Route path="/pages/:stem" element={gate ?? <Article pages={pages} />} />
           </Routes>
