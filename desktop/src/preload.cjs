@@ -7,4 +7,6 @@ contextBridge.exposeInMainWorld('desktop', {
   // 在系统文件管理器中打开 vault 的 kb 目录(只读,不改 fs/config)。
   // 成功返回空串,失败返回错误字符串,前端据此回显。
   openVault: (vaultPath) => ipcRenderer.invoke('vault:open', vaultPath),
+  // 弹原生文件夹选择器选 vault 父目录,返回选中绝对路径(取消返回空串)。
+  selectVaultPath: () => ipcRenderer.invoke('dialog:select-vault-path'),
 })

@@ -2,14 +2,18 @@
 // 切片 04:路径切到 UserDataDir(ADR-0003 D3),首次启动从 bundle 复制 kb_example + 铺放 rg/fd(D4/D8)。
 // 依赖方向单向(D9):只 import createServer,不深入 server 内部模块。
 import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DIR + PI_OFFLINE(见 env.ts 注释)
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { createServer } from '@z-wiki/server'
 import { resolveDesktopPaths } from './paths.js'
 import { ensureFirstRun } from './firstRun.js'
 import { ensureToolBins } from './toolBins.js'
 import { loadWindowBounds, saveWindowBounds } from './windowState.js'
+
+// 应用名:覆盖 Electron 默认"Electron"(macOS 应用菜单/Dock 显示名)。打包后由 Info.plist 接管。
+app.setName('z-wiki')
 
 // preload.js 与 main.js 同在 dist/(tsc 编译 ESM,__dirname 用 import.meta.url 推导)。
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -40,6 +44,17 @@ async function bootstrap(): Promise<void> {
   // 只读,不改 fs/config。成功返回空串,失败返回错误字符串,前端回显。
   ipcMain.handle('vault:open', (_event, vaultPath: string) => shell.openPath(vaultPath))
 
+  // 弹原生文件夹选择器选 vault 父目录:返回选中路径(取消/窗口未就绪返回空串)。
+  ipcMain.handle('dialog:select-vault-path', async () => {
+    if (!mainWindow) return ''
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择知识库存放目录',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return ''
+    return result.filePaths[0]
+  })
+
   interaction = await createServer({
     kbRoot: paths.kbRoot,
     agentDir: paths.agentDir,
@@ -55,17 +70,26 @@ async function bootstrap(): Promise<void> {
   interaction.log.info({ port }, 'embedded server listening')
 
   const bounds = loadWindowBounds(paths.configPath)
+  // 窗口图标:Windows/Linux 走 BrowserWindow.icon;macOS 开发模式该选项不生效,
+  // 用下方 app.dock.setIcon 设 Dock 图标。打包后由 build/icon.icns 接管。
+  // 文件不存在则回落默认(Electron logo),不阻塞启动。
+  const iconPath = path.join(__dirname, '..', 'build', 'icon.png')
+  const iconExists = fs.existsSync(iconPath)
   mainWindow = new BrowserWindow({
     width: bounds?.width ?? 1280,
     height: bounds?.height ?? 800,
     x: bounds?.x,
     y: bounds?.y,
+    icon: iconExists ? iconPath : undefined,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       preload: preloadPath,
     },
   })
+  if (iconExists && process.platform === 'darwin') {
+    app.dock?.setIcon(iconPath)
+  }
   if (bounds?.maximized) mainWindow.maximize()
 
   // 诊断:preload 加载/执行失败时 Electron 不打主进程日志,显式监听抓错误。

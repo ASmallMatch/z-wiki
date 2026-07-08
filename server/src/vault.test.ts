@@ -86,6 +86,43 @@ test('GET /api/vaults: 返回 config.vaults + 当前 Vault(currentKbRoot)', asyn
   }
 })
 
+test('GET /api/vaults: 启动读 config.currentVault(opts.kbRoot 仅为回退)', async () => {
+  // 模拟"上次切换到 B 后重启":config.currentVault=B,createServer 的 opts.kbRoot=A(默认)。
+  // 修复前 currentKbRoot=opts.kbRoot(A) 重启回退默认;修复后读 config.currentVault(B)。
+  const vaultA = await makeVault({ 'wiki/01-a.md': VIEW_TRUE('A', 'vault A') })
+  const vaultB = await makeVault({ 'wiki/01-b.md': VIEW_TRUE('B', 'vault B') })
+  const cfg = {
+    ...CONFIG_JSON,
+    vaults: [
+      { path: vaultA.kbRoot, name: 'A' },
+      { path: vaultB.kbRoot, name: 'B' },
+    ],
+    currentVault: vaultB.kbRoot,
+  }
+  await fs.writeFile(path.join(vaultA.root, 'config.json'), JSON.stringify(cfg), 'utf-8')
+
+  const interaction = await createServer({ kbRoot: vaultA.kbRoot, agentDir: vaultA.agentDir })
+  try {
+    // 启动应读 config.currentVault(B),而非 opts.kbRoot(A)
+    const res = await interaction.app.inject({ method: 'GET', url: '/api/vaults' })
+    assert.equal(res.statusCode, 200)
+    const body = res.json() as { currentVault: string }
+    assert.equal(body.currentVault, vaultB.kbRoot)
+
+    // buildView 也应基于 B:扫到 01-b,扫不到 01-a
+    const pagesRes = await interaction.app.inject({ method: 'GET', url: '/api/pages' })
+    const stems = (pagesRes.json() as Array<{ stem: string }>).map((p) => p.stem)
+    assert.ok(stems.includes('01-b'), '启动应扫到 config.currentVault 指向的库')
+    assert.ok(!stems.includes('01-a'), '不应扫到 opts.kbRoot 的库')
+  } finally {
+    await interaction.app.close()
+    await Promise.all([
+      fs.rm(vaultA.root, { recursive: true, force: true }),
+      fs.rm(vaultB.root, { recursive: true, force: true }),
+    ])
+  }
+})
+
 // ── POST /api/vault(新建)──────────────────────────────────────────
 
 test('POST /api/vault: 从 kb_example 复制新 Vault + 加入 config.vaults(不自动切换)', async () => {
@@ -105,7 +142,7 @@ test('POST /api/vault: 从 kb_example 复制新 Vault + 加入 config.vaults(不
     assert.equal(res.statusCode, 201)
     const body = res.json() as { vault: { path: string; name: string } }
     assert.equal(body.vault.name, 'work')
-    // 新 Vault 的 kb/ 路径在 appRoot 下派生
+    // 新 Vault 的 kb/ 路径在当前仓库父目录下派生(默认库时 dirname(currentKbRoot)=appRoot)
     assert.equal(body.vault.path, path.join(vault.root, 'work-kb'))
     assert.ok(existsSync(path.join(body.vault.path, 'wiki/01-sample.md')), 'kb_example 内容已复制')
     assert.ok(existsSync(path.join(body.vault.path, 'index.md')), 'index.md 已复制')
@@ -123,6 +160,41 @@ test('POST /api/vault: 从 kb_example 复制新 Vault + 加入 config.vaults(不
     await interaction.app.close()
     await fs.rm(vault.root, { recursive: true, force: true })
     await fs.rm(kbExample, { recursive: true, force: true })
+  }
+})
+
+test('POST /api/vault: 无 parentPath 时在当前仓库父目录下派生(跟随当前仓库)', async () => {
+  // currentVault 是自定义路径(B),新建应建在 dirname(B),而非 appRoot(A)。
+  const vaultA = await makeVault({})
+  const vaultB = await makeVault({})
+  const kbExample = await makeKbExample()
+  await fs.writeFile(
+    path.join(vaultA.root, 'config.json'),
+    JSON.stringify({ ...CONFIG_JSON, currentVault: vaultB.kbRoot }),
+    'utf-8',
+  )
+  const interaction = await createServer({
+    kbRoot: vaultA.kbRoot,
+    agentDir: vaultA.agentDir,
+    kbExamplePath: kbExample,
+  })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/vault',
+      payload: { name: 'demo' },
+    })
+    assert.equal(res.statusCode, 201)
+    const body = res.json() as { vault: { path: string } }
+    // 新建在 dirname(currentVault)=vaultB.root,而非 appRoot=vaultA.root
+    assert.equal(body.vault.path, path.join(vaultB.root, 'demo-kb'))
+  } finally {
+    await interaction.app.close()
+    await Promise.all([
+      fs.rm(vaultA.root, { recursive: true, force: true }),
+      fs.rm(vaultB.root, { recursive: true, force: true }),
+      fs.rm(kbExample, { recursive: true, force: true }),
+    ])
   }
 })
 

@@ -2728,6 +2728,23 @@ body.chat-resizing {
   margin-top: var(--sp-2);
 }
 
+/* 新建 Vault 存放位置提示行(轻量,不占 settings-control) */
+.new-vault-location {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  margin-top: var(--sp-1);
+}
+.new-vault-location .vault-path {
+  flex: 1;
+}
+/* 存放位置行按钮:复用 settings-btn 边框风格,紧凑 padding 适配 fs-xs 辅助行 */
+.new-vault-location .settings-btn {
+  padding: var(--sp-1) var(--sp-3);
+}
+
 /* Header 设置按钮 */
 .header-settings-btn {
   display: flex;

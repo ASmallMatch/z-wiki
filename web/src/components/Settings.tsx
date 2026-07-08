@@ -33,6 +33,7 @@ interface ConfigStatus {
 export default function Settings() {
   const [vaults, setVaults] = useState<VaultEntry[]>([])
   const [currentVault, setCurrentVault] = useState('')
+  const [currentVaultParent, setCurrentVaultParent] = useState('')
   const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null)
   const [specs, setSpecs] = useState<ApiSpecEntry[]>([])
   const [exposed, setExposed] = useState<string[]>([])
@@ -48,6 +49,7 @@ export default function Settings() {
   const [shellPathInput, setShellPathInput] = useState('')
   const [savingShell, setSavingShell] = useState(false)
   const [newVaultName, setNewVaultName] = useState('')
+  const [newVaultParent, setNewVaultParent] = useState('')
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,9 +63,14 @@ export default function Settings() {
         fetch('/api/ingest/active'),
         fetch('/api/specs'),
       ])
-      const vdata = (await vaultsRes.json()) as { vaults: VaultEntry[]; currentVault: string }
+      const vdata = (await vaultsRes.json()) as {
+        vaults: VaultEntry[]
+        currentVault: string
+        currentVaultParent: string
+      }
       setVaults(vdata.vaults ?? [])
       setCurrentVault(vdata.currentVault ?? '')
+      setCurrentVaultParent(vdata.currentVaultParent ?? '')
       const status = (await statusRes.json()) as ConfigStatus
       setConfigStatus(status)
       setBaseUrlInput(status.baseUrl || '')
@@ -202,6 +209,13 @@ export default function Settings() {
     }
   }
 
+  // 选 vault 父目录(原生文件夹选择器):仅桌面形态有 window.desktop。
+  const selectVaultParent = async () => {
+    if (!window.desktop) return
+    const selected = await window.desktop.selectVaultPath()
+    if (selected) setNewVaultParent(selected)
+  }
+
   const createVault = async () => {
     const trimmed = newVaultName.trim()
     if (!trimmed) return
@@ -209,17 +223,21 @@ export default function Settings() {
     setError(null)
     setNotice(null)
     try {
+      const body: { name: string; parentPath?: string } = { name: trimmed }
+      if (newVaultParent.trim()) body.parentPath = newVaultParent.trim()
       const res = await fetch('/api/vault', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: trimmed }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const data = (await res.json()) as { error?: string }
         setError(data.error ?? `HTTP ${res.status}`)
       } else {
-        setNotice(`已新建知识库"${trimmed}",点击列表中的"切换"以打开`)
+        const data = (await res.json()) as { vault: { path: string } }
+        setNotice(`已新建知识库"${trimmed}"(${data.vault.path}),点击"切换"以打开`)
         setNewVaultName('')
+        setNewVaultParent('')
         void load()
       }
     } catch (err) {
@@ -531,6 +549,30 @@ export default function Settings() {
                 新建
               </button>
             </div>
+            {window.desktop && (
+              <div className="new-vault-location">
+                <span>存放位置:</span>
+                <code className="vault-path">{newVaultParent || currentVaultParent || '默认'}</code>
+                <button
+                  type="button"
+                  className="settings-btn"
+                  onClick={() => void selectVaultParent()}
+                  disabled={busy}
+                >
+                  {newVaultParent ? '更改' : '选择目录'}
+                </button>
+                {newVaultParent && (
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    onClick={() => setNewVaultParent('')}
+                    disabled={busy}
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </section>
       </div>

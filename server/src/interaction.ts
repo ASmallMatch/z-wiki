@@ -65,9 +65,14 @@ export async function createInteraction(
 ): Promise<Interaction> {
   // 当前 Vault 的 kb/ 根:可变(切库时更新,D7)。createChatSession/createIngestSession/buildView 均从此派生,
   // 不再读 agentCtx.kbRoot(已移除)——切库只换此值,agentContext 全局单例不重建。
-  let currentKbRoot = opts.kbRoot
-  const currentVaultRoot = () => path.dirname(currentKbRoot)
   const configPath = path.join(agentCtx.appRoot, 'config.json')
+  // 启动优先用 config.currentVault(上次切换的库);目录被手动删则 existsSync 兜底回退 opts.kbRoot。
+  const initialCfg = readConfig(configPath)
+  let currentKbRoot =
+    initialCfg.currentVault && existsSync(initialCfg.currentVault)
+      ? initialCfg.currentVault
+      : opts.kbRoot
+  const currentVaultRoot = () => path.dirname(currentKbRoot)
   const kbExamplePath = opts.kbExamplePath
 
   // 默认 debug:让事件流(app.log.debug "pi event")与请求日志在开发期都可见;
@@ -368,7 +373,11 @@ export async function createInteraction(
   // 已知 Vault 列表 + 当前打开项(运行时真相 = currentKbRoot,config.currentVault 跟随同步)。
   app.get('/api/vaults', async () => {
     const cfg = readConfig(configPath)
-    return { vaults: cfg.vaults ?? [], currentVault: currentKbRoot }
+    return {
+      vaults: cfg.vaults ?? [],
+      currentVault: currentKbRoot,
+      currentVaultParent: path.dirname(currentKbRoot),
+    }
   })
 
   // 活跃 ingest 状态(D5:切库前检查,前端据此禁用切库按钮)。
@@ -402,13 +411,16 @@ export async function createInteraction(
   // 新建空 Vault:从 kb_example 复制到指定路径(或 appRoot 下派生路径)→ 加入 config.vaults。
   // 不自动切换(切换走 /api/vault/switch,决策 D4)。
   app.post('/api/vault', async (req, reply) => {
-    const body = (req.body ?? {}) as { name?: string; path?: string }
+    const body = (req.body ?? {}) as { name?: string; path?: string; parentPath?: string }
     let kbRootPath: string
     if (body.path) {
       kbRootPath = path.resolve(body.path)
+    } else if (body.parentPath && body.name) {
+      // 指定父目录(原生选择器选的已存在目录):在其下派生 {slugify(name)}-kb,与 appRoot 派生同规则。
+      kbRootPath = path.join(path.resolve(body.parentPath), `${slugify(body.name)}-kb`)
     } else if (body.name) {
-      // 无显式路径时,在 appRoot 下派生(桌面形态 = UserDataDir,dev = 项目根)
-      kbRootPath = path.join(agentCtx.appRoot, `${slugify(body.name)}-kb`)
+      // 无显式路径时,在当前仓库父目录下派生(跟当前仓库同级);默认库时 dirname(currentKbRoot)=appRoot,向后兼容。
+      kbRootPath = path.join(path.dirname(currentKbRoot), `${slugify(body.name)}-kb`)
     } else {
       return reply.code(400).send({ error: '需提供 name 或 path' })
     }
