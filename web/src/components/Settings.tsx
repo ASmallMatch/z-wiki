@@ -574,6 +574,34 @@ export default function Settings() {
             )}
           </div>
         </section>
+
+        {/* ── 关于(开源许可声明,ADR-0007 决策 4:GPL-2.0 分发义务)── */}
+        <section className="settings-section">
+          <h2 className="settings-section-title">关于</h2>
+          <p className="settings-about-text">
+            z-wiki 内置{' '}
+            <a href="https://github.com/jgm/pandoc" target="_blank" rel="noopener noreferrer">
+              pandoc
+            </a>{' '}
+            二进制用于文档格式转换(非 md 上传解析),遵循{' '}
+            <a
+              href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GPL-2.0
+            </a>{' '}
+            许可。
+          </p>
+          <p className="settings-about-text">
+            pandoc 作为独立可执行文件被调用,不链接进 z-wiki 进程,GPL 不传染主程序代码。 pandoc
+            源码获取:
+            <a href="https://github.com/jgm/pandoc" target="_blank" rel="noopener noreferrer">
+              github.com/jgm/pandoc
+            </a>
+            。
+          </p>
+        </section>
       </div>
     </div>
   )
