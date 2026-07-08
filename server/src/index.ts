@@ -7,6 +7,7 @@ import { realpathSync } from 'node:fs'
 import { buildAgentContext, type AgentContextOptions } from './agentHost.js'
 import { createInteraction, type Interaction } from './interaction.js'
 import { kbRoot } from './kbLayout.js'
+import { ensurePandoc } from './pandocManager.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // dev/CLI 默认路径:从模块位置推导项目根(代码与数据同目录的开发形态)。
@@ -48,9 +49,19 @@ export async function createServer(opts: CreateServerOptions): Promise<Interacti
 /** dev/CLI 入口:用默认 PROJECT_ROOT 推导路径,listen。 */
 async function start(): Promise<void> {
   try {
+    // 确保 pandoc 可用(ADR-0007 决策 3):开发形态按需下载到 .pi/agent/bin。失败 warn 不阻塞。
+    const agentDir = path.join(PROJECT_ROOT, '.pi/agent')
+    try {
+      await ensurePandoc(agentDir)
+    } catch (err) {
+      console.warn(
+        '[z-wiki] pandoc 下载失败,非 md 文档解析将不可用:',
+        err instanceof Error ? err.message : err,
+      )
+    }
     const interaction = await createServer({
       kbRoot: kbRoot(PROJECT_ROOT),
-      agentDir: path.join(PROJECT_ROOT, '.pi/agent'),
+      agentDir,
       kbExamplePath: path.join(PROJECT_ROOT, 'kb_example'),
     })
 

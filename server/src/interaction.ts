@@ -33,6 +33,9 @@ import {
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
 
+// /api/upload 接受的后缀白名单(ADR-0007 决策 1)。01 阶段含 md/docx,02 扩展全 pandoc 格式。
+const ALLOWED_UPLOAD_EXTS: string[] = ['.md', '.docx']
+
 export interface Interaction {
   app: FastifyInstance
   log: FastifyBaseLogger
@@ -214,9 +217,14 @@ export async function createInteraction(
     })
     ingestSessions.add(session)
 
+    const ext = path.extname(rawName).toLowerCase()
+    const readHint =
+      ext === '.md'
+        ? `1. 读取 raw/${rawName} 内容`
+        : `1. raw/${rawName} 是非 md 文件,用 bash 调 pandoc 转文本读取:bash: pandoc raw/${rawName} -t markdown(bash 仅限 pandoc 命令)`
     const prompt = [
       `已上传文件 raw/${rawName}。请按 Ingest 工作流处理:`,
-      `1. 读取 raw/${rawName} 内容`,
+      readHint,
       `2. 按 §1 编译规则判断是否编译为 wiki(若该主题已积累 ≥3 篇或单篇 >100 行有独立概念价值)`,
       `3. 若值得编译:创建/更新 wiki 文章(含 frontmatter view 字段、来源引用 [[raw/${rawName}]]、反向链接),更新 index.md`,
       `4. 若内容达到产出 output 的条件(如可形成对比分析/报告),可产出 output`,
@@ -303,10 +311,12 @@ export async function createInteraction(
     if (!file) {
       return reply.code(400).send({ error: '未提供文件' })
     }
-    // 限制类型:仅 .md
+    // 限制类型:pandoc 支持的后缀白名单(ADR-0007 决策 1)
     const ext = path.extname(file.filename).toLowerCase()
-    if (ext !== '.md') {
-      return reply.code(415).send({ error: '仅支持 .md 文件' })
+    if (!ALLOWED_UPLOAD_EXTS.includes(ext)) {
+      return reply
+        .code(415)
+        .send({ error: `不支持 ${ext} 文件,支持:${ALLOWED_UPLOAD_EXTS.join(', ')}` })
     }
 
     // 安全的文件名:保留原命名,去掉路径与危险字符

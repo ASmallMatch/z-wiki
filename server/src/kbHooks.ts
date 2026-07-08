@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { SUBSEAM_DIRS, isRawPath } from './kbLayout.js'
+import { isAllowedBashCommand } from './bashWhitelist.js'
 
 // 命中以下任一关键词则视为用户主动要求外部知识,不注入引导
 const EXTERNAL_KW =
@@ -67,8 +68,16 @@ export const kbHooksFactory: ExtensionFactory = (pi) => {
     }
   })
 
-  // tool_call 事件:拦 write/edit 对 raw/ 的写(raw/ 只读,ADR-0002 决策 2)
+  // tool_call 事件:拦 write/edit 对 raw/ 的写(raw/ 只读,ADR-0002 决策 2)+ bash 命令白名单(ADR-0007 决策 2)
   pi.on('tool_call', async (event, ctx) => {
+    // bash 命令白名单:只放行 pandoc 单条命令,禁元字符,防 rm -rf 绕过
+    if (event.toolName === 'bash') {
+      const command = (event.input as { command?: string }).command ?? ''
+      const result = isAllowedBashCommand(command)
+      if (!result.ok) {
+        return { block: true, reason: result.reason }
+      }
+    }
     if (event.toolName !== 'write' && event.toolName !== 'edit') return
     const filePath = (event.input as { file_path?: string }).file_path
     if (filePath && isWriteToRaw(filePath, ctx.cwd)) {

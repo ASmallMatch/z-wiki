@@ -256,7 +256,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         <input
           ref={fileRef}
           type="file"
-          accept=".md"
+          accept=".md,.docx"
           onChange={handleFile}
           style={{ display: 'none' }}
         />
@@ -302,7 +302,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
               className="chat-upload"
               onClick={() => fileRef.current?.click()}
               disabled={!connected}
-              title="上传 .md 到 raw/,自动编译"
+              title="上传文档到 raw/,自动编译"
             >
               上传
             </button>

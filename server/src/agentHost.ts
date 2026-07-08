@@ -6,8 +6,11 @@ import {
   ModelRegistry,
   SessionManager,
   createAgentSession,
+  createBashToolDefinition,
+  defineTool,
   type AgentSession,
   type AgentSessionEvent,
+  type BashSpawnHook,
 } from '@earendil-works/pi-coding-agent'
 import type { Api, Model } from '@earendil-works/pi-ai'
 import { KB_SYSTEM_PROMPT } from './prompt.js'
@@ -23,8 +26,22 @@ import {
 // thinking 级别(可配置项暴露于此)。provider/model 改走 config.json(ADR-0003 D3.1)。
 const THINKING_LEVEL = 'off' as const
 
-// agent 默认工具集:知识库编译器所需能力,不含 bash(ADR-0003 D6 收紧能力面 + 跨平台一致)。
-const AGENT_TOOLS = ['read', 'edit', 'write', 'grep', 'find', 'ls'] as const
+// agent 默认工具集:知识库编译器所需能力 + bash(文档解析专用,白名单限定,ADR-0007 决策 2 扩展 D6)。
+const AGENT_TOOLS = ['read', 'edit', 'write', 'grep', 'find', 'ls', 'bash'] as const
+
+/**
+ * 构造 bash 工具(带 spawnHook 注入 pandoc bin 到 PATH,ADR-0007 决策 3)。
+ * bash 经 customTools 注册,覆盖 pi 默认 built-in bash(同名 set 覆盖,agent-session.js:1888)。
+ * 命令白名单由 kbHooks 的 tool_call 事件强制(只放行 pandoc,禁元字符)。
+ */
+function makeBashTool(kbRoot: string, agentDir: string) {
+  const pandocBinDir = path.join(agentDir, 'bin')
+  const spawnHook: BashSpawnHook = (ctx) => ({
+    ...ctx,
+    env: { ...ctx.env, PATH: `${pandocBinDir}:${ctx.env.PATH ?? ''}` },
+  })
+  return defineTool(createBashToolDefinition(kbRoot, { spawnHook }))
+}
 
 export interface AgentContextOptions {
   /**
@@ -173,6 +190,7 @@ export async function createChatSession(opts: CreateChatSessionOptions): Promise
     // 落盘到 .pi/agent/sessions/chat/——每次连接新建会话文件,不续上下文,历史留档
     sessionManager: SessionManager.create(appRoot, path.join(agentDir, 'sessions', 'chat')),
     tools: [...AGENT_TOOLS],
+    customTools: [makeBashTool(kbRoot, agentDir)],
   })
   session.subscribe(opts.onEvent)
   return session
@@ -205,6 +223,7 @@ export async function createIngestSession(opts: CreateIngestSessionOptions): Pro
     // 持久化到 .pi/sessions/,文件名带时间戳避免覆盖
     sessionManager: SessionManager.create(path.join(agentDir, 'sessions')),
     tools: [...AGENT_TOOLS],
+    customTools: [makeBashTool(kbRoot, agentDir)],
   })
   session.subscribe(opts.onEvent)
   return session
