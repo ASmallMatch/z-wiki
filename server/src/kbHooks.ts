@@ -31,12 +31,11 @@ function detectKbChanges(cwd: string): string | null {
   }
 }
 
-/** 写操作的目标路径落入 raw/ 则拦截(ADR-0002 决策 2)。cwd 是 KB_ROOT。 */
+/** 写操作的目标路径落入 raw/ 则拦截(ADR-0002 决策 2)。cwd 即 kb/ 根(agent cwd = kbRoot)。 */
 function isWriteToRaw(filePath: string, cwd: string): boolean {
   if (!filePath) return false
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath)
-  // projectRoot = cwd 的父级(kb/ 的上一级)
-  return isRawPath(abs, path.resolve(cwd, '..'))
+  return isRawPath(abs, cwd)
 }
 
 /** 知识库钩子 extension factory。 */

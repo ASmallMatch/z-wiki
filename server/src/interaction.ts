@@ -70,7 +70,6 @@ export async function createInteraction(
     initialCfg.currentVault && existsSync(initialCfg.currentVault)
       ? initialCfg.currentVault
       : opts.kbRoot
-  const currentVaultRoot = () => path.dirname(currentKbRoot)
   const kbExamplePath = opts.kbExamplePath
 
   // 默认 debug:让事件流(app.log.debug "pi event")与请求日志在开发期都可见;
@@ -188,7 +187,7 @@ export async function createInteraction(
 
   /** 构建 + 通知:纯函数 buildView → 对比缓存 → 变了才换缓存并广播 kb_updated。 */
   async function triggerBuild(notify: { send: (s: string) => void } | null): Promise<void> {
-    const r = await buildView(currentVaultRoot())
+    const r = await buildView(currentKbRoot)
     if (hasIndexChanged(viewCache?.fragments ?? null, r.fragments)) {
       viewCache = r
       const payload = JSON.stringify({ type: 'kb_updated', total: r.pages.length })
@@ -320,11 +319,11 @@ export async function createInteraction(
 
     // 安全的文件名:保留原命名,去掉路径与危险字符
     const safeName = path.basename(file.filename).replace(/[^\w.一-龥-]/g, '_')
-    const rawPath = path.join(rawDir(currentVaultRoot()), safeName)
+    const rawPath = path.join(rawDir(currentKbRoot), safeName)
 
     // 归档到 raw/(写锁;raw/ 对 agent 只读,但上传端点是合法写入方)
     await withFileLock(rawPath, async () => {
-      await fs.mkdir(rawDir(currentVaultRoot()), { recursive: true })
+      await fs.mkdir(rawDir(currentKbRoot), { recursive: true })
       const buf = await file.toBuffer()
       await fs.writeFile(rawPath, buf, 'utf-8')
     })
@@ -477,7 +476,7 @@ export async function createInteraction(
     })
 
     // rebuild buildView(扫新 Vault),更新 viewCache——reply 前完成,前端重连后 /api/pages 即新内容。
-    viewCache = await buildView(currentVaultRoot())
+    viewCache = await buildView(currentKbRoot)
 
     const vaultInfo = { path: targetKbRoot, name: vaultDisplayName(targetKbRoot, updatedCfg) }
     // 先推 vault_changed(显式信号,前端据此清空消息 + 区分切库重连),再 close 复用 on('close') 清理。
@@ -649,7 +648,7 @@ export async function createInteraction(
     app,
     log: app.log,
     refreshView: async () => {
-      const r = await buildView(currentVaultRoot())
+      const r = await buildView(currentKbRoot)
       viewCache = r
       return r.pages.length
     },

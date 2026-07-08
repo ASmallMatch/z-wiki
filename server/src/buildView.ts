@@ -108,9 +108,9 @@ function shouldPublish(src: Source, mdText: string, minLines: number): boolean {
   return lineCount >= minLines
 }
 
-async function scanSources(projectRoot: string): Promise<Source[]> {
-  const wiki = wikiDir(projectRoot)
-  const output = outputDir(projectRoot)
+async function scanSources(kbRoot: string): Promise<Source[]> {
+  const wiki = wikiDir(kbRoot)
+  const output = outputDir(kbRoot)
   const sources: Source[] = []
   for (const [dir, type] of [
     [wiki, 'wiki'],
@@ -123,7 +123,7 @@ async function scanSources(projectRoot: string): Promise<Source[]> {
       const abs = path.join(dir, f)
       sources.push({
         abs,
-        rel: path.relative(projectRoot, abs),
+        rel: path.relative(kbRoot, abs),
         stem: f.replace(/\.md$/, ''),
         type,
       })
@@ -133,8 +133,8 @@ async function scanSources(projectRoot: string): Promise<Source[]> {
 }
 
 // ── 主构建 ───────────────────────────────────────────────────
-export async function buildView(projectRoot: string): Promise<BuildResult> {
-  const sources = await scanSources(projectRoot)
+export async function buildView(kbRoot: string): Promise<BuildResult> {
+  const sources = await scanSources(kbRoot)
   const minLines = DEFAULT_MIN_LINES
   const publishable: Source[] = []
   for (const src of sources) {

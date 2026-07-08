@@ -5,7 +5,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { buildView, type PageMeta } from './buildView.js'
 
-// 构造临时 projectRoot,写入给定相对路径→内容映射。
+// 构造临时 kbRoot(kb/ 根),写入给定相对路径→内容映射。
 async function makeProject(files: Record<string, string>): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-test-'))
   for (const [rel, content] of Object.entries(files)) {
@@ -22,8 +22,8 @@ const stems = (pages: PageMeta[]): Set<string> => new Set(pages.map((p) => p.ste
 
 test('wiki: view:true published, view:false skipped', async () => {
   const root = await makeProject({
-    'kb/wiki/01-foo.md': '---\nview: true\n---\n# Foo\n\n## Section\n\ntext\n',
-    'kb/wiki/02-hidden.md': '---\nview: false\n---\n# Hidden\n\nbody\n',
+    'wiki/01-foo.md': '---\nview: true\n---\n# Foo\n\n## Section\n\ntext\n',
+    'wiki/02-hidden.md': '---\nview: false\n---\n# Hidden\n\nbody\n',
   })
   try {
     const { pages, fragments } = await buildView(root)
@@ -38,9 +38,9 @@ test('wiki: view:true published, view:false skipped', async () => {
 
 test('output: publish flag overrides line count; ≥30 lines default published', async () => {
   const root = await makeProject({
-    'kb/output/short-published.md': '---\npublish: true\n---\n# Short\n\nshort\n',
-    'kb/output/short-draft.md': '# Draft\n\nshort\n',
-    'kb/output/long.md': '# Long\n\n' + longBody(35),
+    'output/short-published.md': '---\npublish: true\n---\n# Short\n\nshort\n',
+    'output/short-draft.md': '# Draft\n\nshort\n',
+    'output/long.md': '# Long\n\n' + longBody(35),
   })
   try {
     const { pages } = await buildView(root)
@@ -54,8 +54,8 @@ test('output: publish flag overrides line count; ≥30 lines default published',
 
 test('health-check 与 output 同级,不被 buildView 扫描', async () => {
   const root = await makeProject({
-    'kb/health-check/report.md': '---\npublish: true\n---\n# HC\n\nx\n',
-    'kb/output/real.md': '---\npublish: true\n---\n# Real\n\nx\n',
+    'health-check/report.md': '---\npublish: true\n---\n# HC\n\nx\n',
+    'output/real.md': '---\npublish: true\n---\n# Real\n\nx\n',
   })
   try {
     const { pages } = await buildView(root)
@@ -68,8 +68,7 @@ test('health-check 与 output 同级,不被 buildView 扫描', async () => {
 
 test('fragment wraps prose, excludes frontmatter, renders wikilink + toc', async () => {
   const root = await makeProject({
-    'kb/wiki/01-foo.md':
-      '---\nview: true\n---\n# Foo\n\n## Section\n\nsee [[02-bar]] and [[raw/x]]\n',
+    'wiki/01-foo.md': '---\nview: true\n---\n# Foo\n\n## Section\n\nsee [[02-bar]] and [[raw/x]]\n',
   })
   try {
     const { fragments, pages } = await buildView(root)
