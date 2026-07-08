@@ -9,6 +9,11 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./uploadExts": {
+      "types": "./src/uploadExts.ts",
+      "node": "./dist/uploadExts.js",
+      "default": "./src/uploadExts.ts"
     }
   },
   "scripts": {

@@ -32,9 +32,7 @@ import {
 } from './config.js'
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
-
-// /api/upload 接受的后缀白名单(ADR-0007 决策 1)。01 阶段含 md/docx,02 扩展全 pandoc 格式。
-const ALLOWED_UPLOAD_EXTS: string[] = ['.md', '.docx']
+import { checkUploadExt } from './uploadExts.js'
 
 export interface Interaction {
   app: FastifyInstance
@@ -316,12 +314,11 @@ export async function createInteraction(
     if (!file) {
       return reply.code(400).send({ error: '未提供文件' })
     }
-    // 限制类型:pandoc 支持的后缀白名单(ADR-0007 决策 1)
+    // 限制类型:pandoc 支持的后缀白名单(ADR-0007 决策 1 + 决策 5)。校验集中在 checkUploadExt 纯函数。
     const ext = path.extname(file.filename).toLowerCase()
-    if (!ALLOWED_UPLOAD_EXTS.includes(ext)) {
-      return reply
-        .code(415)
-        .send({ error: `不支持 ${ext} 文件,支持:${ALLOWED_UPLOAD_EXTS.join(', ')}` })
+    const rejection = checkUploadExt(ext)
+    if (rejection) {
+      return reply.code(415).send(rejection)
     }
 
     // 安全的文件名:保留原命名,去掉路径与危险字符

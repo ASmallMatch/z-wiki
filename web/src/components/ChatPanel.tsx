@@ -1,3 +1,4 @@
+import { ALLOWED_UPLOAD_EXTS } from '@z-wiki/server/uploadExts'
 import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { type ChatMessage, type Segment, type TurnStats, useChat } from '../hooks/useChat'
 
@@ -256,7 +257,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         <input
           ref={fileRef}
           type="file"
-          accept=".md,.docx"
+          accept={ALLOWED_UPLOAD_EXTS.join(',')}
           onChange={handleFile}
           style={{ display: 'none' }}
         />

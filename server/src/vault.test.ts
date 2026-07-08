@@ -5,40 +5,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
 import { createServer } from './index.js'
+import { CONFIG_JSON, makeVault } from './testFixtures.js'
 
 // 集成测试 Vault 管理 + 切库端点(ADR-0003 D4/D5/D7/D3.1)。
 // HTTP 用 app.inject();WS vault_changed 用真实 listen + WebSocket 客户端验证推送。
 process.env.NODE_ENV = 'production'
 process.env.LOG_LEVEL = 'error'
-
-const CONFIG_JSON = {
-  apiKey: 'test-key',
-  baseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
-  api: 'anthropic-messages',
-  model: 'ark-code-latest',
-}
-
-interface Vault {
-  kbRoot: string
-  agentDir: string
-  root: string
-}
-
-/** 构造临时 vault:kb/wiki/<file> + .pi/agent/ + config.json(落 appRoot)。 */
-async function makeVault(wikiFiles: Record<string, string>): Promise<Vault> {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-vault-'))
-  const kbRoot = path.join(root, 'kb')
-  const agentDir = path.join(root, '.pi/agent')
-  await fs.mkdir(kbRoot, { recursive: true })
-  for (const [rel, content] of Object.entries(wikiFiles)) {
-    const abs = path.join(kbRoot, rel)
-    await fs.mkdir(path.dirname(abs), { recursive: true })
-    await fs.writeFile(abs, content, 'utf-8')
-  }
-  await fs.mkdir(agentDir, { recursive: true })
-  await fs.writeFile(path.join(root, 'config.json'), JSON.stringify(CONFIG_JSON), 'utf-8')
-  return { kbRoot, agentDir, root }
-}
 
 /** 构造最小 kb_example 样板(供 POST /api/vault 新建 Vault 时复制)。 */
 async function makeKbExample(): Promise<string> {
