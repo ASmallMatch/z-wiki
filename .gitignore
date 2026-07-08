@@ -17,6 +17,8 @@ server/dist/
 /.claude/worktrees
 # 预打进 rg/fd 二进制(大,开发期 tsx scripts/fetch-tool-bins.ts 拉取,ADR-0003 D8)
 desktop/resources/bin/
+# desktop/build/ 图标产物(render-icon.mjs 从 icon.svg 渲染生成);icon.svg 是矢量源需保留
+desktop/build/*.png
 /server/.DS_Store
 /vault/test-kb
 .firecrawl
