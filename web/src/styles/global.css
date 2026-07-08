@@ -28,6 +28,7 @@
   --border-light: #2e2e3a;
   --border-inner: rgba(255, 255, 255, 0.05);
   --rule: #363644;
+  --track-bg: rgba(255, 255, 255, 0.16); /* 进度条凹槽底色，与 surface 拉开对比 */
   /* 阴影：更柔和的深色阴影，弱化辉光 */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.4);
@@ -128,6 +129,7 @@
   --border-light: #f0eeec;
   --border-inner: rgba(0, 0, 0, 0.04);
   --rule: #e7e5e4;
+  --track-bg: rgba(0, 0, 0, 0.14);
   /* 阴影：浅底更柔，暖调偏褐黑（与陶土橙同色系，不偏蓝） */
   --shadow-sm: 0 1px 3px rgba(60, 40, 30, 0.08);
   --shadow-md: 0 4px 14px rgba(60, 40, 30, 0.1);
@@ -2152,7 +2154,7 @@ body.home-no-scroll {
   width: 48px;
   height: 4px;
   border-radius: 2px;
-  background: var(--border-light);
+  background: var(--track-bg);
   overflow: hidden;
 }
 .chat-ctx-fill {
