@@ -18,3 +18,7 @@ server/dist/
 # 预打进 rg/fd 二进制(大,开发期 tsx scripts/fetch-tool-bins.ts 拉取,ADR-0003 D8)
 desktop/resources/bin/
 /server/.DS_Store
+/vault/test-kb
+.firecrawl
+/vault
+/.DS_Store
