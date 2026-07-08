@@ -14,6 +14,11 @@
       "types": "./src/uploadExts.ts",
       "node": "./dist/uploadExts.js",
       "default": "./src/uploadExts.ts"
+    },
+    "./markdown": {
+      "types": "./src/markdown.ts",
+      "node": "./dist/markdown.js",
+      "default": "./src/markdown.ts"
     }
   },
   "scripts": {

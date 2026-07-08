@@ -1,5 +1,6 @@
 import { ALLOWED_UPLOAD_EXTS } from '@z-wiki/server/uploadExts'
-import { type ChangeEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { mdToHtml } from '@z-wiki/server/markdown'
+import { type ChangeEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { type ChatMessage, type Segment, type TurnStats, useChat } from '../hooks/useChat'
 
 /** 格式化 token 数:>1k 显示为 1.2k,否则原值。 */
@@ -66,8 +67,12 @@ function ToolChip({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }) {
   )
 }
 
-/** 渲染纯文本:保留换行,转义后以 pre-wrap 呈现,与 prose 协调。 */
-function TextBlock({ text }: { text: string }) {
+/** 渲染文本:user 消息纯文本 pre-wrap;assistant 消息走 md 渲染(复用 server 的 mdToHtml,与 wiki 文章同源)。 */
+function TextBlock({ text, markdown }: { text: string; markdown?: boolean }) {
+  const html = useMemo(() => (markdown ? mdToHtml(text) : null), [markdown, text])
+  if (html !== null) {
+    return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />
+  }
   return <div className="chat-text">{text}</div>
 }
 
@@ -102,7 +107,7 @@ function MessageBubble({ msg, typing }: { msg: ChatMessage; typing?: boolean }) 
           <>
             {segments.map((seg) =>
               seg.kind === 'text' ? (
-                <TextBlock key={seg.id} text={seg.text} />
+                <TextBlock key={seg.id} text={seg.text} markdown />
               ) : (
                 <ToolChip key={seg.id} seg={seg} />
               ),
