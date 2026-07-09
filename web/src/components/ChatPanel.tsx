@@ -257,7 +257,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         <button
           type="button"
           className="chat-quick"
-          onClick={() => send('/skill:health-check')}
+          onClick={() => send('/skill:health-check', '🔍 健康检查')}
           disabled={!connected || streaming}
           title="知识库健康检查"
           aria-label="健康检查"
