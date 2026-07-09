@@ -212,3 +212,90 @@ export function mdToHtml(mdText: string): string {
   }
   return out.join('\n')
 }
+
+export interface Block {
+  /** 块原文(不含块间空行分隔) */
+  text: string
+  /** true=已闭合可缓存;false=末尾正在写需重算 */
+  complete: boolean
+}
+
+/**
+ * 把 markdown 切成块级单元(段落/代码块/列表/表格/引用/标题/hr),块边界识别与
+ * mdToHtml 的 while 扫描一致(一致性见 markdown.test.ts 的"整体 == 各块再 join"用例)。
+ * 流式渲染用:complete 块缓存 mdToHtml 结果,只有末尾 partial 块重算。
+ *
+ * complete 判定:代码块需遇结束 fence;其他块需其后还有内容(空行或下一块)。
+ * 故仅最后一个块可能 partial,其余 complete。
+ */
+export function splitBlocks(mdText: string): Block[] {
+  const { body } = splitFrontmatter(mdText)
+  const arr = body.split('\n')
+  const blocks: Block[] = []
+  let i = 0
+  while (i < arr.length) {
+    const s = arr[i].trim()
+    if (s === '') {
+      i++
+      continue
+    }
+    const start = i
+    let codeClosed = false
+    if (s.startsWith('```')) {
+      i++
+      while (i < arr.length && !arr[i].trim().startsWith('```')) i++
+      if (i < arr.length) {
+        codeClosed = true
+        i++
+      }
+    } else if (isHr(arr[i])) {
+      i++
+    } else if (s.startsWith('>')) {
+      while (i < arr.length && arr[i].startsWith('>')) i++
+    } else if (s.startsWith('|')) {
+      while (i < arr.length && arr[i].trim().startsWith('|')) i++
+    } else if (/^(#{1,6})\s+/.test(s)) {
+      i++
+    } else if (/^[-*+]\s/.test(s) || /^\d+\.\s/.test(s)) {
+      while (i < arr.length) {
+        const t = arr[i].replace(/^\s+/, '')
+        if (/^[-*+]\s/.test(t) || /^\d+\.\s/.test(t) || t === '') {
+          i++
+          continue
+        }
+        break
+      }
+    } else {
+      i = consumeParagraph(arr, i)
+    }
+    let end = i
+    while (end > start && arr[end - 1].trim() === '') end--
+    const text = arr.slice(start, end).join('\n')
+    const isCode = s.startsWith('```')
+    blocks.push({ text, complete: isCode ? codeClosed : i < arr.length })
+  }
+  return blocks
+}
+
+/** 段落:连续非空、非块起始行,遇空行或块起始停止(空行吃一个,同 mdToHtml 段落解析)。 */
+function consumeParagraph(arr: string[], i: number): number {
+  while (i < arr.length) {
+    const cs = arr[i].trim()
+    if (cs === '') {
+      i++
+      break
+    }
+    if (
+      cs.startsWith('```') ||
+      cs.startsWith('|') ||
+      cs.startsWith('>') ||
+      cs.startsWith('#') ||
+      /^[-*+]\s/.test(cs) ||
+      /^\d+\.\s/.test(cs) ||
+      isHr(arr[i])
+    )
+      break
+    i++
+  }
+  return i
+}

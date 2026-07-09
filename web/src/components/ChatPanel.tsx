@@ -1,6 +1,14 @@
 import { ALLOWED_UPLOAD_EXTS } from '@z-wiki/server/uploadExts'
-import { mdToHtml } from '@z-wiki/server/markdown'
-import { type ChangeEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { mdToHtml, splitBlocks } from '@z-wiki/server/markdown'
+import {
+  type ChangeEvent,
+  type KeyboardEvent,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   type ChatMessage,
   type IngestPhase,
@@ -87,16 +95,88 @@ function ToolChip({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }) {
   )
 }
 
-/** 渲染文本:user 消息纯文本 pre-wrap;assistant 消息走 md 渲染(复用 server 的 mdToHtml,与 wiki 文章同源)。 */
+/** 渲染文本:user 消息纯文本 pre-wrap;assistant 消息走块级 md 渲染(复用 server 的 mdToHtml,与 wiki 文章同源)。 */
 function TextBlock({ text, markdown }: { text: string; markdown?: boolean }) {
-  const html = useMemo(() => (markdown ? mdToHtml(text) : null), [markdown, text])
-  if (html !== null) {
-    return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />
-  }
-  return <div className="chat-text">{text}</div>
+  if (!markdown) return <div className="chat-text">{text}</div>
+  return <MarkdownStream text={text} />
 }
 
-function MessageBubble({ msg, typing }: { msg: ChatMessage; typing?: boolean }) {
+/**
+ * 块级流式 markdown:splitBlocks 切块,complete 块 memo 缓存(html 不重算),
+ * 只有末尾 partial 块重算 mdToHtml 且经节流,避免每个 text_delta 全文 O(N²)。
+ * 块级独立 DOM(非单 div 全文 innerHTML),complete 块 DOM 节点不动。
+ */
+function MarkdownStream({ text }: { text: string }) {
+  const blocks = useMemo(() => splitBlocks(text), [text])
+  const lastIdx = blocks.length - 1
+  const lastBlock = blocks[lastIdx]
+  const streaming = lastBlock ? !lastBlock.complete : false
+  const throttledLast = useThrottle(lastBlock?.text ?? '', streaming ? 100 : 0)
+  return (
+    <>
+      {blocks.map((b, idx) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: 块顺序稳定,仅末尾追加,idx 作 key 安全
+        <BlockView key={idx} text={idx === lastIdx && streaming ? throttledLast : b.text} />
+      ))}
+    </>
+  )
+}
+
+/** 单块渲染:memo 按 text 比较,complete 块 text 不变 -> 跳过重渲染与 mdToHtml 重算。 */
+const BlockView = memo(
+  function BlockView({ text }: { text: string }) {
+    const html = useMemo(() => mdToHtml(text), [text])
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: 渲染 mdToHtml 产出的受信 html(已 escapeHtml 转义)
+    return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />
+  },
+  (prev, next) => prev.text === next.text,
+)
+
+/** 时间窗口节流(leading + trailing):流式期间每 interval ms 最多更新一次,停顿后补最终值。 */
+function useThrottle<T>(value: T, interval: number): T {
+  const [throttled, setThrottled] = useState(value)
+  const lastRunRef = useRef(0)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const valueRef = useRef(value)
+  valueRef.current = value
+  useEffect(() => {
+    if (interval <= 0) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      setThrottled(value)
+      return
+    }
+    if (timerRef.current) return
+    const elapsed = Date.now() - lastRunRef.current
+    if (elapsed >= interval) {
+      lastRunRef.current = Date.now()
+      setThrottled(value)
+    } else {
+      timerRef.current = setTimeout(() => {
+        lastRunRef.current = Date.now()
+        timerRef.current = null
+        setThrottled(valueRef.current)
+      }, interval - elapsed)
+    }
+  }, [value, interval])
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    },
+    [],
+  )
+  return throttled
+}
+
+const MessageBubble = memo(function MessageBubble({
+  msg,
+  typing,
+}: {
+  msg: ChatMessage
+  typing?: boolean
+}) {
   if (msg.role === 'system') {
     return (
       <div className={`chat-row chat-row-system ${msg.error ? 'chat-row-error' : ''}`}>
@@ -144,7 +224,7 @@ function MessageBubble({ msg, typing }: { msg: ChatMessage; typing?: boolean }) 
       </div>
     </div>
   )
-}
+})
 
 interface ChatPanelProps {
   onClose: () => void
@@ -163,9 +243,13 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
     e.target.value = ''
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages 是滚动触发信号(消息增长时滚到底),非直接引用
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [messages])
+    const el = scrollRef.current
+    if (!el) return
+    // 流式期间 instant(每 delta 直接定位,轻);非流式 smooth(完成时平滑收尾)
+    el.scrollTo({ top: el.scrollHeight, behavior: streaming ? 'auto' : 'smooth' })
+  }, [messages, streaming])
 
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
