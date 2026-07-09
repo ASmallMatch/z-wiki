@@ -13,7 +13,8 @@
       "!**/kb_example",
       "!**/.pi",
       "!**/.scratch",
-      "!**/.firecrawl"
+      "!**/.firecrawl",
+      "!**/.claude/worktrees"
     ]
   },
   "formatter": {
