@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { usePages } from './hooks/useData'
+import { ThemeProvider } from './hooks/useTheme'
 import Header from './components/Header'
 import FloatingActions from './components/FloatingActions'
 import ChatDrawer from './components/ChatDrawer'
@@ -34,7 +35,7 @@ export default function App() {
   ) : null
 
   return (
-    <>
+    <ThemeProvider>
       <Header pages={pages} chatOpen={chatOpen} onToggleChat={() => setChatOpen(true)} />
       <main className="app-main">
         <Suspense fallback={<LoadingState />}>
@@ -48,6 +49,6 @@ export default function App() {
       <FloatingActions />
 
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
-    </>
+    </ThemeProvider>
   )
 }

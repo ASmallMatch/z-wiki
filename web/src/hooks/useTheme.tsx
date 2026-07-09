@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 export type Theme = 'archive' | 'draft'
 
@@ -12,7 +12,16 @@ function readTheme(): Theme {
   return 'archive'
 }
 
-export function useTheme() {
+interface ThemeContextValue {
+  theme: Theme
+  toggle: () => void
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null)
+
+// 唯一 theme state 持有者:ThemeToggle 与 Home 等所有 useTheme 消费者共享,
+// 避免各自独立 useState 导致切换不同步(BookShelf3D 收不到新 theme 不换皮)。
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(readTheme)
 
   // 切换时同步 DOM data-theme（驱动 CSS）+ 持久化到 localStorage
@@ -29,5 +38,11 @@ export function useTheme() {
     setTheme((t) => (t === 'archive' ? 'draft' : 'archive'))
   }, [])
 
-  return { theme, toggle }
+  return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>
+}
+
+export function useTheme(): ThemeContextValue {
+  const ctx = useContext(ThemeContext)
+  if (!ctx) throw new Error('useTheme 必须在 ThemeProvider 内使用')
+  return ctx
 }
