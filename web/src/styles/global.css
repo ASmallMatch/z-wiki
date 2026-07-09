@@ -2527,8 +2527,8 @@ body.home-no-scroll {
 .chat-quickbar {
   display: flex;
   gap: var(--sp-2);
-  /* 对齐下方 textarea 文字左边缘:框 margin(sp-3)+ border(1px)+ 框 padding(sp-3)+ textarea padding(sp-2) */
-  margin: 0 calc(var(--sp-3) * 2 + var(--sp-2) + 1px);
+  /* 对齐下方 chat-input-row 左边框(border 外侧 = 框 margin sp-3) */
+  margin: 0 var(--sp-3);
   overflow-x: auto;
 }
 .chat-quick {
