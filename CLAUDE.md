@@ -21,14 +21,14 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 ## 常用命令
 
 ```bash
-make dev          # 同时启动 server(:3000)+ web(:5173),开发模式
+make run          # 构建并启动主工作区的 desktop(Electron)
+make run-w        # 复用主工作区依赖,启动 worktree 的 desktop
 make typecheck    # 全量类型检查(server + web + scripts + desktop 四个 tsconfig)
 npm test          # 跑 server + desktop 的 *.test.ts(tsx --test)
 make lint         # Biome lint(不修改)
 make format       # Biome 格式化(写入)
 make health       # 知识库健康检查(断链/孤儿/空文件)
 make build        # 构建前端 + 后端产物
-make desktop      # 构建 web+server+desktop 并启动 Electron 桌面壳
 ```
 
 `make typecheck` 抓类型错误(server + web + scripts + desktop 四个 tsconfig),`make lint` 抓风格/质量问题(a11y、非空断言等)。改完代码先跑 `make typecheck` 与 `make format`。
