@@ -96,27 +96,32 @@ function ToolChip({ seg }: { seg: Extract<Segment, { kind: 'tool' }> }) {
 }
 
 /** 渲染文本:user 消息纯文本 pre-wrap;assistant 消息走块级 md 渲染(复用 server 的 mdToHtml,与 wiki 文章同源)。 */
-function TextBlock({ text, markdown }: { text: string; markdown?: boolean }) {
+function TextBlock({
+  text,
+  markdown,
+  streaming,
+}: {
+  text: string
+  markdown?: boolean
+  streaming?: boolean
+}) {
   if (!markdown) return <div className="chat-text">{text}</div>
-  return <MarkdownStream text={text} />
+  return <MarkdownStream text={text} streaming={!!streaming} />
 }
 
 /**
- * 块级流式 markdown:splitBlocks 切块,complete 块 memo 缓存(html 不重算),
- * 只有末尾 partial 块重算 mdToHtml 且经节流,避免每个 text_delta 全文 O(N²)。
- * 块级独立 DOM(非单 div 全文 innerHTML),complete 块 DOM 节点不动。
+ * 块级流式 markdown:先节流整个 text(流式时每 100ms 一次,避免每 delta 全文
+ * splitBlocks 的 O(N²)),再 splitBlocks 切块;complete 块 memo 缓存 html 不重算,
+ * 只有末尾 partial 块重算 mdToHtml。块级独立 DOM(非单 div 全文 innerHTML)。
  */
-function MarkdownStream({ text }: { text: string }) {
-  const blocks = useMemo(() => splitBlocks(text), [text])
-  const lastIdx = blocks.length - 1
-  const lastBlock = blocks[lastIdx]
-  const streaming = lastBlock ? !lastBlock.complete : false
-  const throttledLast = useThrottle(lastBlock?.text ?? '', streaming ? 100 : 0)
+function MarkdownStream({ text, streaming }: { text: string; streaming: boolean }) {
+  const throttledText = useThrottle(text, streaming ? 100 : 0)
+  const blocks = useMemo(() => splitBlocks(throttledText), [throttledText])
   return (
     <>
       {blocks.map((b, idx) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: 块顺序稳定,仅末尾追加,idx 作 key 安全
-        <BlockView key={idx} text={idx === lastIdx && streaming ? throttledLast : b.text} />
+        <BlockView key={idx} text={b.text} />
       ))}
     </>
   )
@@ -207,7 +212,7 @@ const MessageBubble = memo(function MessageBubble({
           <>
             {segments.map((seg) =>
               seg.kind === 'text' ? (
-                <TextBlock key={seg.id} text={seg.text} markdown />
+                <TextBlock key={seg.id} text={seg.text} markdown streaming={typing} />
               ) : (
                 <ToolChip key={seg.id} seg={seg} />
               ),
