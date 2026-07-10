@@ -127,9 +127,9 @@ export function useChat() {
 
     ws.onopen = () => setConnected(true)
     ws.onclose = () => {
-      setConnected(false)
-      // 仅当仍是当前连接时处理:StrictMode 双挂载下旧 ws 的 onclose 不应触发重连
+      // 仅当仍是当前连接时处理:StrictMode 双挂载下旧 ws 的 onclose 不应清 connected 或触发重连
       if (wsRef.current !== ws) return
+      setConnected(false)
       wsRef.current = null
       if (!mountedRef.current) return
       const wasSwitch = vaultSwitchingRef.current
