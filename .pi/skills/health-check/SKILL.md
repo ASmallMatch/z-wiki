@@ -48,4 +48,4 @@ disable-model-invocation: true
 ## 注意
 
 - 扫描结果以 `health_check` 工具返回的 `HealthReport` 为准,不要自己用 grep/read 重新扫描(那会漏掉占位符过滤、wikilink 转义等精确逻辑)。
-- 只读检查,不改 wiki/ 内容(修复建议给用户,由用户决定是否执行);唯一写入是 `log.md` 的 lint 记录。
+- 只读检查,不改 wiki/ 内容(修复建议给用户,由用户决定是否执行);写入 `health-check/YYYY-MM-DD-知识库健康检查-报告.md` 报告(详版,见系统提示词 §8)+ `log.md` 的 lint 记录(索引)。

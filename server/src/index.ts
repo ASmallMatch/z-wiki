@@ -65,7 +65,7 @@ async function start(): Promise<void> {
       kbExamplePath: path.join(PROJECT_ROOT, 'kb_example'),
     })
 
-    // graceful shutdown:tsx watch / concurrently 在 Ctrl+C 时给子进程发信号,
+    // graceful shutdown:进程收到退出信号(Ctrl+C / app 退出)时,
     // 若有活跃 WebSocket 句柄 fastify 不会自行退出,会被反复 force kill。
     let closing = false
     const shutdown = async (signal: string): Promise<void> => {

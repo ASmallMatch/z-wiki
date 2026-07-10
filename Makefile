@@ -1,4 +1,4 @@
-.PHONY: help install run run-w build health typecheck lint format format-check clean
+.PHONY: help install run run-w build typecheck lint format format-check clean
 
 WORKTREE ?= .claude/worktrees/command
 
@@ -17,9 +17,6 @@ run-w: ## 复用主工作区依赖,启动 worktree 的 desktop
 
 build: ## 构建前端 + 后端产物
 	npm run build
-
-health: ## 知识库健康检查(断链/孤儿/空文件等)
-	npm run health
 
 typecheck: ## 全量类型检查
 	npm run typecheck

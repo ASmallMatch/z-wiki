@@ -27,7 +27,6 @@ make typecheck    # 全量类型检查(server + web + scripts + desktop 四个 t
 npm test          # 跑 server + desktop 的 *.test.ts(tsx --test)
 make lint         # Biome lint(不修改)
 make format       # Biome 格式化(写入)
-make health       # 知识库健康检查(断链/孤儿/空文件)
 make build        # 构建前端 + 后端产物
 ```
 

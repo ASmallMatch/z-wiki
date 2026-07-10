@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
-import { collectReport, formatReport, runHealthCheck, type HealthReport } from './healthCheck.js'
+import { collectReport, runHealthCheck } from './healthCheck.js'
 
 // 构造临时 kbRoot(kb/ 根),写入给定相对路径->内容映射(复用 buildView.test 模式)。
 async function makeProject(files: Record<string, string>): Promise<string> {
@@ -75,23 +75,4 @@ test('runHealthCheck 是 collectReport 的别名(同行为)', async () => {
   } finally {
     await fs.rm(root, { recursive: true, force: true })
   }
-})
-
-test('formatReport: 输出含各检查项段落', () => {
-  const report: HealthReport = {
-    fileCount: 4,
-    wikiCount: 3,
-    broken: [{ from: 'wiki/02-b.md', target: 'missing' }],
-    orphans: [{ rel: 'wiki/03-c.md', stem: '03-c' }],
-    empties: [{ rel: 'wiki/04-empty.md' }],
-    dups: [],
-    frontmatterPct: 75,
-    wikiStats: [{ stem: '01-a', lines: 5, hasFrontmatter: true }],
-  }
-  const md = formatReport(report)
-  assert.ok(md.includes('断链详情'), '含断链详情段')
-  assert.ok(md.includes('孤儿 wiki'), '含孤儿 wiki 段')
-  assert.ok(md.includes('Wiki 文件统计'), '含 Wiki 文件统计段')
-  assert.ok(md.includes('missing'), '含断链目标')
-  assert.ok(md.includes('75%'), '含 frontmatter 覆盖率')
 })

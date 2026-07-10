@@ -24,3 +24,4 @@ desktop/build/*.png
 .firecrawl
 /vault
 /.DS_Store
+/.codebase-memory
