@@ -1,5 +1,6 @@
 import { ALLOWED_UPLOAD_EXTS } from '@z-wiki/server/uploadExts'
 import { mdToHtml, splitBlocks } from '@z-wiki/server/markdown'
+import remend from 'remend'
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -121,7 +122,7 @@ function MarkdownStream({ text, streaming }: { text: string; streaming: boolean 
     <>
       {blocks.map((b, idx) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: 块顺序稳定,仅末尾追加,idx 作 key 安全
-        <BlockView key={idx} text={b.text} />
+        <BlockView key={idx} text={b.text} partial={!b.complete} />
       ))}
     </>
   )
@@ -129,12 +130,13 @@ function MarkdownStream({ text, streaming }: { text: string; streaming: boolean 
 
 /** 单块渲染:memo 按 text 比较,complete 块 text 不变 -> 跳过重渲染与 mdToHtml 重算。 */
 const BlockView = memo(
-  function BlockView({ text }: { text: string }) {
-    const html = useMemo(() => mdToHtml(text), [text])
+  function BlockView({ text, partial }: { text: string; partial: boolean }) {
+    // partial 块(流式末块)跑 remend 补全未闭合标记(**bold/[text](url),消除闭合瞬间闪烁(FOIM)
+    const html = useMemo(() => mdToHtml(partial ? remend(text) : text), [text, partial])
     // biome-ignore lint/security/noDangerouslySetInnerHtml: 渲染 mdToHtml 产出的受信 html(已 escapeHtml 转义)
     return <div className="chat-markdown" dangerouslySetInnerHTML={{ __html: html }} />
   },
-  (prev, next) => prev.text === next.text,
+  (prev, next) => prev.text === next.text && prev.partial === next.partial,
 )
 
 /** 时间窗口节流(leading + trailing):流式期间每 interval ms 最多更新一次,停顿后补最终值。 */
