@@ -137,8 +137,8 @@ function parseList(ln: Lines, ordered: boolean): string {
   return out.join('\n')
 }
 
-export function mdToHtml(mdText: string): string {
-  const { body } = splitFrontmatter(mdText)
+/** mdToHtml 的 body 版:已剥 frontmatter。buildView 复用避免重复 splitFrontmatter。 */
+export function mdToHtmlBody(body: string): string {
   const arr = body.split('\n')
   const ln: Lines = { arr, i: 0 }
   const out: string[] = []
@@ -202,7 +202,7 @@ export function mdToHtml(mdText: string): string {
         cs.startsWith('```') ||
         cs.startsWith('|') ||
         cs.startsWith('>') ||
-        cs.startsWith('#') ||
+        /^(#{1,6})\s+(.+)$/.test(cs) ||
         /^[-*+]\s/.test(cs) ||
         /^\d+\.\s/.test(cs) ||
         isHr(cl)
@@ -214,6 +214,10 @@ export function mdToHtml(mdText: string): string {
     if (para.length) out.push(`<p>${parseInline(para.join(' '))}</p>`)
   }
   return out.join('\n')
+}
+
+export function mdToHtml(mdText: string): string {
+  return mdToHtmlBody(splitFrontmatter(mdText).body)
 }
 
 export interface Block {
@@ -292,7 +296,7 @@ function consumeParagraph(arr: string[], i: number): number {
       cs.startsWith('```') ||
       cs.startsWith('|') ||
       cs.startsWith('>') ||
-      cs.startsWith('#') ||
+      /^(#{1,6})\s+(.+)$/.test(cs) ||
       /^[-*+]\s/.test(cs) ||
       /^\d+\.\s/.test(cs) ||
       isHr(arr[i])

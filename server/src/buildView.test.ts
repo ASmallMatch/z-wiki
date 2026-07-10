@@ -81,6 +81,8 @@ test('fragment wraps prose, excludes frontmatter, renders wikilink + toc', async
     assert.ok(!frag!.includes('href="./raw/x.html"'))
 
     const foo = pages.find((p) => p.stem === '01-foo')
+    assert.equal(foo?.title, 'Foo')
+    assert.equal(foo?.summary, 'see [[02-bar]] and [[raw/x]]')
     assert.equal(foo?.toc.length, 1)
     assert.equal(foo?.toc[0].text, 'Section')
     assert.equal(foo?.toc[0].level, 'h2')

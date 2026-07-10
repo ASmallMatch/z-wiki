@@ -1,14 +1,14 @@
-// buildView.ts — 知识库 → 可视数据 的纯函数编译器。
+// buildView.ts - 知识库 -> 可视数据 的纯函数编译器。
 // 扫描 wiki/(view:true)与 output/ 的 .md,编译为内存结构:
-//   pages     — PageMeta[] 索引(供前端列表/导航)
-//   fragments — Map<stem, html> 文章片段(<article class="prose">...)
+//   pages     - PageMeta[] 索引(供前端列表/导航)
+//   fragments - Map<stem, html> 文章片段(<article class="prose">...)
 // 纯函数:只读文件系统,不写盘。由 Interaction 缓存结果并经 HTTP 暴露。
-// md→html 1:1 平移自原 Python 版。
+// md->html 1:1 平移自原 Python 版。
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { existsSync } from 'node:fs'
 import { wikiDir, outputDir } from './kbLayout.js'
-import { mdToHtml, splitFrontmatter } from './markdown.js'
+import { mdToHtmlBody, splitFrontmatter } from './markdown.js'
 
 export interface TocItem {
   level: 'h2' | 'h3'
@@ -44,16 +44,15 @@ function fmField(fm: string, field: string): boolean | null {
 }
 
 // ── 元信息提取 ───────────────────────────────────────────────
-function extractTitle(text: string): string | null {
-  for (const line of text.split('\n')) {
+function extractTitle(body: string): string | null {
+  for (const line of body.split('\n')) {
     const s = line.trim()
     if (s.startsWith('# ') && !s.startsWith('## ')) return s.slice(2).trim()
   }
   return null
 }
 
-function buildToc(mdText: string): TocItem[] {
-  const { body } = splitFrontmatter(mdText)
+function buildToc(body: string): TocItem[] {
   const toc: TocItem[] = []
   for (const line of body.split('\n')) {
     const s = line.trim()
@@ -74,8 +73,7 @@ function buildToc(mdText: string): TocItem[] {
   return toc
 }
 
-function extractSummary(mdText: string): string {
-  const { body } = splitFrontmatter(mdText)
+function extractSummary(body: string): string {
   for (const line of body.split('\n')) {
     const s = line.trim()
     if (!s) continue
@@ -147,14 +145,15 @@ export async function buildView(kbRoot: string): Promise<BuildResult> {
   for (const src of publishable) {
     const mdText = await fs.readFile(src.abs, 'utf-8')
     const stat = await fs.stat(src.abs)
-    const title = extractTitle(mdText) ?? src.stem
-    fragments.set(src.stem, `<article class="prose">\n${mdToHtml(mdText)}\n</article>`)
+    const { body } = splitFrontmatter(mdText)
+    const title = extractTitle(body) ?? src.stem
+    fragments.set(src.stem, `<article class="prose">\n${mdToHtmlBody(body)}\n</article>`)
     pages.push({
       stem: src.stem,
       title,
-      summary: extractSummary(mdText),
+      summary: extractSummary(body),
       updated: stat.mtime.toISOString().slice(0, 10),
-      toc: buildToc(mdText),
+      toc: buildToc(body),
       type: src.type,
     })
   }
