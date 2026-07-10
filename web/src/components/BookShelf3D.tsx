@@ -756,7 +756,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       } else {
         const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
         const targetSlot = Math.round(-rot.val / effStep)
-        target = -targetSlot * effStep
+        // 无 virtual(N≤17):snap 收敛到窗口 [-half, half],防 rot 累积飞出后松手不回
+        const slot = virtual ? targetSlot : Math.max(-half, Math.min(half, targetSlot))
+        target = -slot * effStep
       }
       snapping = true
       gsap.to(rot, {
@@ -863,6 +865,17 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       orbiting = true
     }
 
+    /**
+     * 无 virtual(N≤17)多书:rot 硬夹到 ±min(half*effStep, soloMaxRot),防 x=sin(a)*RADIUS
+     * 飞出视口。硬 clamp(墙=最远槽位,松手 snap 对齐)区别于单本书橡皮筋(slots<=1 无槽
+     * 可吸、渐近回弹),两者语义不同故不复用。virtual 路径靠 reflow 收敛 pos,不夹。
+     */
+    function clampRot(val: number): number {
+      const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
+      const limit = Math.min(half * effStep, soloMaxRot)
+      return Math.max(-limit, Math.min(limit, val))
+    }
+
     function onPointerEnter(e: PointerEvent) {
       pointerInside = true
       const ndc = mouseToNDC(e)
@@ -908,6 +921,8 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         } else {
           rot.val = raw
         }
+      } else if (!virtual) {
+        rot.val = clampRot(raw)
       } else {
         rot.val = raw
       }
@@ -1170,6 +1185,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
           snapping = false
         }
         rot.val += vel * dt
+        if (!virtual) {
+          rot.val = clampRot(rot.val)
+        }
         vel *= Math.pow(DRAG_FRICTION, dt * 60)
         if (Math.abs(vel) < VEL_SNAP_THRESHOLD) {
           vel = 0
