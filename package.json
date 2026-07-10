@@ -9,9 +9,6 @@
     "desktop"
   ],
   "scripts": {
-    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"tsx scripts/wait-port.ts 3000 && npm run dev -w web\"",
-    "dev:server": "npm run dev -w server",
-    "dev:web": "npm run dev -w web",
     "build": "npm run build -w web && npm run build -w server",
     "desktop": "node desktop/scripts/patch-electron-name.mjs && npm run build && npm run build -w @z-wiki/desktop && electron desktop",
     "health": "tsx server/src/healthCheck.ts",
