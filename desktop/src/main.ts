@@ -5,7 +5,8 @@ import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DI
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import { createServer } from '@z-wiki/server'
 import { resolveDesktopPaths } from './paths.js'
 import { ensureFirstRun } from './firstRun.js'
@@ -81,6 +82,8 @@ async function bootstrap(): Promise<void> {
     x: bounds?.x,
     y: bounds?.y,
     icon: iconExists ? iconPath : undefined,
+    // 隐藏顶部默认菜单栏(File/Edit/View/Window/Help),按 Alt 可临时唤出(保留快捷键可访问性)。
+    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -109,7 +112,70 @@ async function bootstrap(): Promise<void> {
   mainWindow.on('close', () => persistWindowBounds())
 }
 
+/** 应用菜单:顶层标题中文,子项用 role 保留系统行为与快捷键(role 在中文系统会自动本地化子项标签)。 */
+function setAppMenu(): void {
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: '文件',
+      submenu: [{ role: 'quit', label: '退出' }],
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'undo', label: '撤销' },
+        { role: 'redo', label: '重做' },
+        { type: 'separator' },
+        { role: 'cut', label: '剪切' },
+        { role: 'copy', label: '复制' },
+        { role: 'paste', label: '粘贴' },
+        { role: 'selectAll', label: '全选' },
+      ],
+    },
+    {
+      label: '视图',
+      submenu: [
+        { role: 'reload', label: '重新加载' },
+        { role: 'forceReload', label: '强制重新加载' },
+        { role: 'toggleDevTools', label: '开发者工具' },
+        { type: 'separator' },
+        { role: 'resetZoom', label: '重置缩放' },
+        { role: 'zoomIn', label: '放大' },
+        { role: 'zoomOut', label: '缩小' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: '全屏' },
+      ],
+    },
+    {
+      label: '窗口',
+      submenu: [
+        { role: 'minimize', label: '最小化' },
+        { role: 'zoom', label: '缩放' },
+        { role: 'close', label: '关闭' },
+      ],
+    },
+    {
+      label: '帮助',
+      submenu: [
+        {
+          label: '关于 z-wiki',
+          click: () => {
+            if (!mainWindow || mainWindow.isDestroyed()) return
+            void dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: '关于 z-wiki',
+              message: 'z-wiki',
+              detail: `版本 ${app.getVersion()}\nElectron ${process.versions.electron}`,
+            })
+          },
+        },
+      ],
+    },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 app.whenReady().then(() => {
+  setAppMenu()
   void bootstrap().catch((err) => {
     console.error('desktop bootstrap failed:', err)
     app.quit()
