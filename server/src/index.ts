@@ -5,7 +5,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { realpathSync } from 'node:fs'
 import { buildAgentContext, type AgentContextOptions } from './agentHost.js'
-import { createInteraction, type Interaction } from './interaction.js'
+import {
+  createInteraction,
+  type CreateInteractionOptions,
+  type Interaction,
+} from './interaction.js'
 import { kbRoot } from './kbLayout.js'
 import { ensurePandoc } from './pandocManager.js'
 
@@ -27,6 +31,8 @@ export interface CreateServerOptions extends AgentContextOptions {
   webDistPath?: string
   /** bundle 内 kb_example 绝对路径;省略则 POST /api/vault 返回 503。 */
   kbExamplePath?: string
+  /** 测试注入:替换 chat/ingest session 工厂(默认 agentHost);生产不传。 */
+  sessions?: CreateInteractionOptions['sessions']
 }
 
 /**
@@ -39,6 +45,7 @@ export async function createServer(opts: CreateServerOptions): Promise<Interacti
     kbRoot: opts.kbRoot,
     webDistPath: opts.webDistPath,
     kbExamplePath: opts.kbExamplePath,
+    sessions: opts.sessions,
   })
   interaction.log.info('agent context ready')
   const total = await interaction.refreshView()

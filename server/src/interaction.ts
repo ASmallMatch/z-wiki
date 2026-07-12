@@ -15,8 +15,8 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import {
   type AgentContext,
   applyModelToSessions,
-  createChatSession,
-  createIngestSession,
+  createChatSession as defaultCreateChatSession,
+  createIngestSession as defaultCreateIngestSession,
   reloadAgentConfig,
   resolveModel,
   withFileLock,
@@ -49,6 +49,14 @@ export interface CreateInteractionOptions {
   webDistPath?: string
   /** bundle 内 kb_example 路径,新建 Vault 时复制;省略则 POST /api/vault 返回 503(dev 形态可不传)。 */
   kbExamplePath?: string
+  /**
+   * 测试注入:替换 chat/ingest session 工厂(默认 agentHost)。生产不传。
+   * node:test 无法 mock ESM 模块(Cannot redefine property),故用 DI 让回归测试可注入 mock。
+   */
+  sessions?: {
+    createChatSession: typeof defaultCreateChatSession
+    createIngestSession: typeof defaultCreateIngestSession
+  }
 }
 
 /**
@@ -63,6 +71,9 @@ export async function createInteraction(
 ): Promise<Interaction> {
   // 当前 Vault 的 kb/ 根:可变(切库时更新,D7)。createChatSession/createIngestSession/buildView 均从此派生,
   // 不再读 agentCtx.kbRoot(已移除)——切库只换此值,agentContext 全局单例不重建。
+  // chat/ingest session 工厂:默认 agentHost,测试可经 opts.sessions 注入 mock(避免真实 LLM)。
+  const createChatSession = opts.sessions?.createChatSession ?? defaultCreateChatSession
+  const createIngestSession = opts.sessions?.createIngestSession ?? defaultCreateIngestSession
   const configPath = path.join(agentCtx.appRoot, 'config.json')
   // 启动优先用 config.currentVault(上次切换的库);目录被手动删则 existsSync 兜底回退 opts.kbRoot。
   const initialCfg = readConfig(configPath)
@@ -190,9 +201,12 @@ export async function createInteraction(
     const r = await buildView(currentKbRoot)
     if (hasIndexChanged(viewCache?.fragments ?? null, r.fragments)) {
       viewCache = r
-      const payload = JSON.stringify({ type: 'kb_updated', total: r.pages.length })
-      if (notify) notify.send(payload)
-      broadcast(payload)
+      // 广播对象:broadcast 内部会 JSON.stringify 一次。先前传预 stringify 的字符串,
+      // broadcast 再 stringify 一次(双重编码),前端 JSON.parse 得字符串而非对象,
+      // msg.type 为 undefined 被忽略,kb_updated 永不触发前端重拉(ingest 后首页不刷新的根因)。
+      const msg = { type: 'kb_updated' as const, total: r.pages.length }
+      if (notify) notify.send(JSON.stringify(msg))
+      broadcast(msg)
     }
   }
 
