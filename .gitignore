@@ -25,3 +25,4 @@ desktop/build/*.png
 /vault
 /.DS_Store
 /.codebase-memory
+/.playwright-mcp
