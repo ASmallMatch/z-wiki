@@ -12,7 +12,7 @@ run: ## 构建并启动主工作区的 desktop(Electron)
 	npm run desktop
 
 run-w: ## 复用主仓库依赖,启动 worktree 的 desktop(在 worktree 或主仓库均可跑)
-	@MAIN_ROOT=$$(git rev-parse --git-common-dir); MAIN_ROOT=$${MAIN_ROOT%/.git}; \
+	@MAIN_ROOT=$$(cd "$$(git rev-parse --git-common-dir)/.." && pwd); \
 	test -d "$$MAIN_ROOT/node_modules" || { echo "主仓库 node_modules 不存在,先 cd $$MAIN_ROOT && npm install"; exit 1; }; \
 	if [ "$(abspath $(WORKTREE))" != "$$MAIN_ROOT" ]; then \
 		ln -sfn "$$MAIN_ROOT/node_modules" "$(abspath $(WORKTREE))/node_modules"; \
