@@ -213,7 +213,8 @@ export async function createChatSession(opts: CreateChatSessionOptions): Promise
     resourceLoader: opts.ctx.resourceLoader,
     // 落盘到 .pi/agent/sessions/chat/——每次连接新建会话文件,不续上下文,历史留档
     sessionManager: SessionManager.create(appRoot, path.join(agentDir, 'sessions', 'chat')),
-    tools: [...AGENT_TOOLS],
+    // health_check 走 customTools,须同时在 tools 白名单里 pi 才启用,否则被 allowedToolNames 过滤(agent-session isAllowedTool)
+    tools: [...AGENT_TOOLS, 'health_check'],
     customTools: [makeBashTool(kbRoot, agentDir), makeHealthCheckTool(kbRoot)],
   })
   session.subscribe(opts.onEvent)
