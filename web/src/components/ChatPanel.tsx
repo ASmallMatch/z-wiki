@@ -267,31 +267,37 @@ function ThinkingButton({
       <button
         type="button"
         className="chat-quick"
-        onClick={() => !disabled && !unsupported && setOpen((v) => !v)}
-        disabled={disabled || unsupported}
-        title={unsupported ? '当前模型不支持思考' : '思考模式'}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        title={unsupported ? '当前模型未开启思考(reasoning),去设置页 LLM 配置开启' : '思考模式'}
         aria-label="思考模式"
         aria-expanded={open}
       >
         思考:{level}
       </button>
-      {open && !unsupported && (
+      {open && (
         <ul className="chat-thinking-menu" role="menu">
-          {levels.map((lv) => (
-            <li key={lv} role="menuitem">
-              <button
-                type="button"
-                className={lv === level ? 'active' : ''}
-                onClick={() => {
-                  onSelect(lv)
-                  setOpen(false)
-                }}
-              >
-                {lv}
-                {lv === level ? ' ✓' : ''}
-              </button>
+          {unsupported ? (
+            <li className="chat-thinking-hint" role="menuitem">
+              当前模型未开启思考,去设置页 LLM 配置勾选 reasoning
             </li>
-          ))}
+          ) : (
+            levels.map((lv) => (
+              <li key={lv} role="menuitem">
+                <button
+                  type="button"
+                  className={lv === level ? 'active' : ''}
+                  onClick={() => {
+                    onSelect(lv)
+                    setOpen(false)
+                  }}
+                >
+                  {lv}
+                  {lv === level ? ' ✓' : ''}
+                </button>
+              </li>
+            ))
+          )}
         </ul>
       )}
     </div>

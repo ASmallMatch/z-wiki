@@ -447,10 +447,6 @@ export default function Settings() {
                 />
                 <span>模型支持思考(reasoning)</span>
               </label>
-              <span className="settings-hint">
-                DeepSeek 自动启用;其他思考模型(如
-                Qwen-thinking)手动勾选。关闭后思考模式快捷按钮灰显。
-              </span>
             </div>
           </div>
 

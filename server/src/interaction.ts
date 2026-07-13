@@ -27,7 +27,7 @@ import { buildView, type PageMeta } from './buildView.js'
 import {
   DEFAULT_CONTEXT_WINDOW,
   THINKING_LEVELS,
-  isDeepSeekBaseUrl,
+  isDeepSeekModel,
   maskApiKey,
   readConfig,
   type ThinkingLevel,
@@ -439,7 +439,7 @@ export async function createInteraction(
       shellPath: cfg.shellPath ?? '',
       // reasoning 当前生效值:config 显式覆盖,否则按 baseUrl 自动推断(DeepSeek -> true,ADR-0004 D8)。
       // 供设置页勾选框显示;用户改 -> POST /api/config/llm 显式写 config.reasoning。
-      reasoning: cfg.reasoning ?? isDeepSeekBaseUrl(cfg.baseUrl),
+      reasoning: cfg.reasoning ?? isDeepSeekModel(cfg.baseUrl, cfg.model),
     }
   })
 

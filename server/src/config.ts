@@ -132,9 +132,12 @@ export function maskApiKey(key: string): string {
   return `${key.slice(0, 4)}••••••••${key.slice(-4)}`
 }
 
-/** baseUrl 是否指向 DeepSeek(供 reasoning 自动推断 + thinkingLevelMap 注入复用,ADR-0004 D8)。 */
-export function isDeepSeekBaseUrl(baseUrl: string): boolean {
-  return baseUrl.includes('deepseek.com')
+/**
+ * 是否为 DeepSeek 模型(供 reasoning 自动推断 + thinkingLevelMap 注入复用,ADR-0004 D8)。
+ * 检测 baseUrl(官方 api.deepseek.com)或 model.id 含 deepseek(覆盖 ark 等代理端点跑 DeepSeek)。
+ */
+export function isDeepSeekModel(baseUrl: string, modelId: string): boolean {
+  return baseUrl.includes('deepseek.com') || modelId.includes('deepseek')
 }
 
 /**
@@ -149,7 +152,7 @@ export function generateModelsJson(
   // reasoning:config 显式覆盖;否则按 baseUrl 自动推断(DeepSeek -> true)。ADR-0004 D8 / ADR-0012。
   // pi-ai 的 openai-completions deepseek 分支要求 model.reasoning=true 才传 thinking 参数,
   // 故 reasoning=false/undefined 时不写 reasoning 字段(pi-ai 当 falsy,不传 thinking)。
-  const isDeepSeek = isDeepSeekBaseUrl(config.baseUrl)
+  const isDeepSeek = isDeepSeekModel(config.baseUrl, config.model)
   const reasoning = config.reasoning ?? isDeepSeek
   const models: ModelsJson['providers'][string]['models'] = []
   if (config.model) {

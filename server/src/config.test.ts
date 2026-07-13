@@ -93,6 +93,23 @@ test('generateModelsJson: DeepSeek baseUrl 自动 reasoning + thinkingLevelMap(A
   })
 })
 
+test('generateModelsJson: ark 代理跑 DeepSeek(model.id 含 deepseek)自动 reasoning', () => {
+  // baseUrl 不含 deepseek.com(ark 等代理),但 model.id 含 deepseek -> 识别为 DeepSeek 自动开思考。
+  const json = generateModelsJson({
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
+    api: 'anthropic-messages',
+    model: 'deepseek-v4-pro',
+  })
+  assert.equal(json.providers.custom.models[0].reasoning, true)
+  assert.deepEqual(json.providers.custom.models[0].thinkingLevelMap, {
+    minimal: 'high',
+    low: 'high',
+    medium: 'high',
+    high: 'high',
+    xhigh: 'max',
+  })
+})
+
 test('generateModelsJson: config.reasoning 显式覆盖自动推断', () => {
   // 显式 false:DeepSeek 也不开思考(reasoning 字段不传,pi-ai 当 falsy)
   const off = generateModelsJson({

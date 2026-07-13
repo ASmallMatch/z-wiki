@@ -2637,6 +2637,15 @@ body.home-no-scroll {
   color: var(--accent-bright);
   font-weight: 600;
 }
+/* unsupported 提示:model 不支持思考时,菜单显示提示而非档位列表。 */
+.chat-thinking-hint {
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  white-space: normal;
+  max-width: 220px;
+}
 .chat-input {
   width: 100%;
   flex: 1;
@@ -2852,7 +2861,7 @@ body.chat-resizing {
   line-height: var(--lh-snug);
   margin: 0 0 var(--sp-3);
 }
-/* 思考模式勾选框(ADR-0004 D8):inline-flex 让 checkbox 与文字对齐。 */
+/* 思考模式勾选框(ADR-0004 D8):自定义外观取代浏览器默认,与 settings 整体风格一致。 */
 .settings-checkbox {
   display: inline-flex;
   align-items: center;
@@ -2862,8 +2871,33 @@ body.chat-resizing {
   cursor: pointer;
 }
 .settings-checkbox input {
+  appearance: none;
   margin: 0;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
   cursor: pointer;
+  position: relative;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.settings-checkbox input:checked {
+  background: var(--accent-bright);
+  border-color: var(--accent-border);
+}
+.settings-checkbox input:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .settings-row {
