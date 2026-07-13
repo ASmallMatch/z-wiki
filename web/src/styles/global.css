@@ -2564,15 +2564,15 @@ body.home-no-scroll {
   margin: var(--sp-2) var(--sp-3) var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
 }
-/* 快捷按钮栏:composer(chat-input-row)上方,横排左对齐,溢出横滑(Q1 布局,ADR-0009)。
+/* 快捷按钮栏:composer(chat-input-row)上方,横排左对齐(ADR-0009 承载)。
    左右对齐 textarea 边缘:框 margin(sp-3)+ 框 padding(sp-3)。按钮少时内容自适应宽度,
-   不追 upload 按钮左边缘(浮动);>4 个溢出横滑,分组推迟。*/
+   不追 upload 按钮左边缘(浮动)。不设 overflow-x:auto--会让 overflow-y 计算为 auto,
+   裁剪思考菜单(bottom:100% 向上溢出);按钮增多溢出时改 portal 或分组。*/
 .chat-quickbar {
   display: flex;
   gap: var(--sp-2);
   /* 对齐下方 chat-input-row 左边框(border 外侧 = 框 margin sp-3) */
   margin: 0 var(--sp-3);
-  overflow-x: auto;
 }
 .chat-quick {
   display: inline-flex;

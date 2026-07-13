@@ -259,8 +259,10 @@ function ThinkingButton({
     const onDoc = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    // capture 阶段:ChatDrawer 的 chat-drawer-panel onMouseDown stopPropagation 阻止冒泡,
+    // 冒泡阶段 document 监听收不到;改 capture 在 target 前触发,确保外部点击能关闭菜单。
+    document.addEventListener('mousedown', onDoc, true)
+    return () => document.removeEventListener('mousedown', onDoc, true)
   }, [open])
   return (
     <div className="chat-thinking" ref={ref}>
@@ -338,6 +340,8 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
   }, [messages, streaming])
 
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME 组词(中文输入)期间不拦截 Enter,让输入法确认候选词后再判断提交。
+    if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submit()

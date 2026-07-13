@@ -50,6 +50,8 @@ export default function Header({ pages, chatOpen, onToggleChat }: HeaderProps) {
     : []
 
   const handleKey = (e: KeyboardEvent) => {
+    // IME 组词(中文输入)期间不拦截方向键/Enter,让输入法正常选词与确认候选词。
+    if (e.nativeEvent.isComposing) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelected((i) => Math.min(i + 1, results.length - 1))
