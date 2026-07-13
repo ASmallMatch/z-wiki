@@ -2599,6 +2599,44 @@ body.home-no-scroll {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* 思考模式下拉(ADR-0004 D8):外层 relative 供菜单 absolute 向上展开。 */
+.chat-thinking {
+  position: relative;
+}
+.chat-thinking-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: var(--sp-1);
+  list-style: none;
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  z-index: 10;
+}
+.chat-thinking-menu button {
+  display: block;
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.chat-thinking-menu button:hover {
+  color: var(--accent-bright);
+}
+.chat-thinking-menu button.active {
+  color: var(--accent-bright);
+  font-weight: 600;
+}
 .chat-input {
   width: 100%;
   flex: 1;
@@ -2813,6 +2851,19 @@ body.chat-resizing {
   font-style: italic;
   line-height: var(--lh-snug);
   margin: 0 0 var(--sp-3);
+}
+/* 思考模式勾选框(ADR-0004 D8):inline-flex 让 checkbox 与文字对齐。 */
+.settings-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  cursor: pointer;
+}
+.settings-checkbox input {
+  margin: 0;
+  cursor: pointer;
 }
 
 .settings-row {

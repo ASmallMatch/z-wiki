@@ -13,7 +13,8 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import type { Api, Model, TextContent } from '@earendil-works/pi-ai'
-import { KB_SYSTEM_PROMPT } from './prompt.js'
+import { KB_SYSTEM_PROMPT, KB_OUTPUT_LANG_PROMPT } from './prompt.js'
+import { thinkingPromptFactory } from './thinkingPrompt.js'
 import { runHealthCheck, type HealthReport } from './healthCheck.js'
 import { kbHooksFactory } from './kbHooks.js'
 import {
@@ -22,10 +23,11 @@ import {
   writeModelsJson,
   writeShellSettingsJson,
   type ConfigJson,
+  type ThinkingLevel,
 } from './config.js'
 
-// thinking 级别(可配置项暴露于此)。provider/model 改走 config.json(ADR-0003 D3.1)。
-const THINKING_LEVEL = 'off' as const
+// ingest agent 固定 off(后台编译不需思考,省 token);chat agent 走 config.thinkingLevel(ADR-0004 D8)。
+const INGEST_THINKING_LEVEL = 'off' as const
 
 // agent 默认工具集:知识库编译器所需能力 + pandoc(非 md 转换,customTool,ADR-0011)。
 const AGENT_TOOLS = ['read', 'edit', 'write', 'grep', 'find', 'ls', 'pandoc'] as const
@@ -180,12 +182,14 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
   authStorage.setRuntimeApiKey(PROVIDER_KEY, config.apiKey)
   const modelRegistry = ModelRegistry.create(authStorage, modelsJsonPath)
 
-  // 资源加载器:注入知识库系统提示词 + kb 钩子 extension
+  // 资源加载器:注入知识库系统提示词 + 段A(输出语言,始终追加)+ kb 钩子 + 思考语言 extension。
+  // 段B(思考语言)不走 appendSystemPrompt--它是 session 级动态(thinkingPromptFactory 按 thinkingLevel 注入)。
   const resourceLoader = new DefaultResourceLoader({
     cwd: appRoot,
     agentDir,
     systemPromptOverride: () => KB_SYSTEM_PROMPT,
-    extensionFactories: [kbHooksFactory],
+    appendSystemPrompt: [KB_OUTPUT_LANG_PROMPT],
+    extensionFactories: [kbHooksFactory, thinkingPromptFactory],
   })
   await resourceLoader.reload()
 
@@ -244,6 +248,28 @@ export async function applyModelToSessions(
   }
 }
 
+/**
+ * 切换当前 chat session 的思考模式(ADR-0004 D8 / ADR-0012)。
+ * 与 applyModelToSessions 的区别:只切 chat session,不切 ingest(后台编译保持 off,省 token)。
+ * pi setThinkingLevel 同步、不清 messages,下一轮生效;clamp 到 model 能力,返回实际生效 level。
+ * 调用方负责先写 config.thinkingLevel(真相源);此处只改 session 运行时状态。
+ */
+export function applyThinkingToChatSession(
+  sessions: Iterable<AgentSession>,
+  level: ThinkingLevel,
+): ThinkingLevel {
+  let actual = level
+  for (const s of sessions) {
+    s.setThinkingLevel(level)
+    // pi clamp 后实际 level 可能与请求不同;取最后一个 session 的实际值(多 session 理论上一致)。
+    actual = s.thinkingLevel
+    if (actual !== level) {
+      console.warn(`[z-wiki] thinkingLevel ${level} 被 clamp 到 ${actual}(model 能力限制)`)
+    }
+  }
+  return actual
+}
+
 export interface CreateChatSessionOptions {
   ctx: AgentContext
   /** 当前 Vault 的 kb/ 根(agent cwd,随 Vault 切换;D7 显式参数,不从 ctx 取)。 */
@@ -263,7 +289,8 @@ export async function createChatSession(opts: CreateChatSessionOptions): Promise
     cwd: kbRoot,
     agentDir,
     model,
-    thinkingLevel: THINKING_LEVEL,
+    // chat 走 config.thinkingLevel(ADR-0004 D8):持久化在 config.json,运行时切换走 POST /api/config/thinking。
+    thinkingLevel: opts.ctx.config.thinkingLevel ?? 'off',
     authStorage: opts.ctx.authStorage,
     modelRegistry: opts.ctx.modelRegistry,
     resourceLoader: opts.ctx.resourceLoader,
@@ -297,7 +324,8 @@ export async function createIngestSession(opts: CreateIngestSessionOptions): Pro
     cwd: kbRoot,
     agentDir,
     model,
-    thinkingLevel: THINKING_LEVEL,
+    // ingest 固定 off:后台编译不需思考,省 token;不跟 config.thinkingLevel(ADR-0004 D8)。
+    thinkingLevel: INGEST_THINKING_LEVEL,
     authStorage: opts.ctx.authStorage,
     modelRegistry: opts.ctx.modelRegistry,
     resourceLoader: opts.ctx.resourceLoader,

@@ -78,6 +78,42 @@ test('generateModelsJson: contextWindow 缺省 → 回退默认 128000', () => {
   assert.equal(json.providers.custom.models[0].contextWindow, 128000)
 })
 
+test('generateModelsJson: DeepSeek baseUrl 自动 reasoning + thinkingLevelMap(ADR-0004 D8)', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.deepseek.com',
+    api: 'openai-completions',
+    model: 'deepseek-v4-pro',
+  })
+  // DeepSeek 自动开思考(reasoning: true)+ 注入 effort 映射(DeepSeek 只认 high/max)
+  assert.deepEqual(json.providers.custom.models[0], {
+    id: 'deepseek-v4-pro',
+    contextWindow: 128000,
+    reasoning: true,
+    thinkingLevelMap: { minimal: 'high', low: 'high', medium: 'high', high: 'high', xhigh: 'max' },
+  })
+})
+
+test('generateModelsJson: config.reasoning 显式覆盖自动推断', () => {
+  // 显式 false:DeepSeek 也不开思考(reasoning 字段不传,pi-ai 当 falsy)
+  const off = generateModelsJson({
+    baseUrl: 'https://api.deepseek.com',
+    api: 'openai-completions',
+    model: 'deepseek-v4-pro',
+    reasoning: false,
+  })
+  assert.equal(off.providers.custom.models[0].reasoning, undefined)
+  assert.equal(off.providers.custom.models[0].thinkingLevelMap, undefined)
+  // 显式 true:非 DeepSeek 也开思考(走 pi 默认,无 thinkingLevelMap)
+  const on = generateModelsJson({
+    baseUrl: 'https://api.example.com/v1',
+    api: 'openai-completions',
+    model: 'my-reasoning-model',
+    reasoning: true,
+  })
+  assert.equal(on.providers.custom.models[0].reasoning, true)
+  assert.equal(on.providers.custom.models[0].thinkingLevelMap, undefined)
+})
+
 test('readConfig: 文件不存在 → 回退空壳默认值(空壳能起,不抛错;与 config.example.json 等价)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-cfg-'))
   try {

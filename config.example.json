@@ -8,5 +8,6 @@
   "vaults": [],
   "currentVault": "",
   "shellPath": "",
+  "thinkingLevel": "off",
   "preferences": {}
 }

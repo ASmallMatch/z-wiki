@@ -237,9 +237,82 @@ interface ChatPanelProps {
   onClose: () => void
 }
 
+/** 思考模式下拉按钮(ADR-0004 D8):显示当前档,点击展开选档;不支持思考时(只有 off)灰显 + tooltip。 */
+function ThinkingButton({
+  level,
+  levels,
+  disabled,
+  onSelect,
+}: {
+  level: string
+  levels: string[]
+  disabled: boolean
+  onSelect: (level: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  // model 不支持思考时(available 只有 off)灰显 + tooltip,不可展开。
+  const unsupported = levels.length <= 1 && levels[0] === 'off'
+  // 展开时点击外部关闭菜单
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+  return (
+    <div className="chat-thinking" ref={ref}>
+      <button
+        type="button"
+        className="chat-quick"
+        onClick={() => !disabled && !unsupported && setOpen((v) => !v)}
+        disabled={disabled || unsupported}
+        title={unsupported ? '当前模型不支持思考' : '思考模式'}
+        aria-label="思考模式"
+        aria-expanded={open}
+      >
+        思考:{level}
+      </button>
+      {open && !unsupported && (
+        <ul className="chat-thinking-menu" role="menu">
+          {levels.map((lv) => (
+            <li key={lv} role="menuitem">
+              <button
+                type="button"
+                className={lv === level ? 'active' : ''}
+                onClick={() => {
+                  onSelect(lv)
+                  setOpen(false)
+                }}
+              >
+                {lv}
+                {lv === level ? ' ✓' : ''}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function ChatPanel({ onClose }: ChatPanelProps) {
-  const { messages, streaming, connected, send, upload, model, turnStats, contextUsage, ingest } =
-    useChat()
+  const {
+    messages,
+    streaming,
+    connected,
+    send,
+    upload,
+    model,
+    turnStats,
+    contextUsage,
+    ingest,
+    thinkingLevel,
+    thinkingLevels,
+    setThinking,
+  } = useChat()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -367,6 +440,12 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
           </svg>
           健康检查
         </button>
+        <ThinkingButton
+          level={thinkingLevel}
+          levels={thinkingLevels}
+          disabled={!connected || streaming}
+          onSelect={setThinking}
+        />
       </div>
       <div
         className="chat-input-row"

@@ -28,6 +28,8 @@ interface ConfigStatus {
   apiKeyMasked: string
   exposedApiSpecs: string[]
   shellPath: string
+  /** model 是否支持思考(当前生效 = config.reasoning ?? 自动推断,ADR-0004 D8)。 */
+  reasoning: boolean
 }
 
 export default function Settings() {
@@ -47,6 +49,7 @@ export default function Settings() {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [shellPathInput, setShellPathInput] = useState('')
+  const [reasoningInput, setReasoningInput] = useState(false)
   const [savingShell, setSavingShell] = useState(false)
   const [newVaultName, setNewVaultName] = useState('')
   const [newVaultParent, setNewVaultParent] = useState('')
@@ -78,6 +81,7 @@ export default function Settings() {
       setContextWindowInput(String(status.contextWindow ?? 128000))
       setApiKeyInput(status.apiKey || '')
       setShellPathInput(status.shellPath || '')
+      setReasoningInput(status.reasoning)
       setIngestActive(((await activeRes.json()) as { active: boolean }).active ?? false)
       const specsData = (await specsRes.json()) as { specs: ApiSpecEntry[]; exposed: string[] }
       setSpecs(specsData.specs ?? [])
@@ -122,6 +126,7 @@ export default function Settings() {
           model: modelInput,
           contextWindow: Number(contextWindowInput),
           apiKey: apiKeyInput,
+          reasoning: reasoningInput,
         }),
       })
       if (!res.ok) {
@@ -425,6 +430,27 @@ export default function Settings() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+
+          <div className="settings-field">
+            <label className="settings-label" htmlFor="llm-reasoning">
+              思考模式
+            </label>
+            <div className="settings-control">
+              <label className="settings-checkbox">
+                <input
+                  id="llm-reasoning"
+                  type="checkbox"
+                  checked={reasoningInput}
+                  onChange={(e) => setReasoningInput(e.target.checked)}
+                />
+                <span>模型支持思考(reasoning)</span>
+              </label>
+              <span className="settings-hint">
+                DeepSeek 自动启用;其他思考模型(如
+                Qwen-thinking)手动勾选。关闭后思考模式快捷按钮灰显。
+              </span>
             </div>
           </div>
 

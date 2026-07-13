@@ -215,3 +215,18 @@ status: active
 - **读非 md 文档(docx/xlsx/pptx 等)用 \`pandoc\` 工具**:\`pandoc({ filePath: "raw/x.docx" })\`。read 读非 md 会被 kbHooks 拦截(拿二进制乱码)
 - 不要假设 Obsidian 或 obsidian-cli 存在;本系统不依赖它们
 `
+
+/**
+ * 段A:输出语言约束(始终注入,经 appendSystemPrompt)。
+ * 与 KB_SYSTEM_PROMPT 分离--主提示词是知识库工作流,语言约束是横切关注点,独立追加便于单独调整。
+ */
+export const KB_OUTPUT_LANG_PROMPT =
+  '所有最终回复使用中文;代码标识符(文件路径、函数名、接口名等)保持原文。'
+
+/**
+ * 段B:思考语言约束(仅思考模式开时注入,经 thinkingPrompt extension 动态追加到该轮 systemPrompt)。
+ * 思考模式 off 时不注入--off 无 thinking token 作用对象,且段A 已约束输出语言。
+ * 开思考后此句约束 thinking token + 正文推演的语言,防工具英文输出触发语言切换。
+ */
+export const KB_THINKING_LANG_PROMPT =
+  '请全程使用中文进行内部推理和思考。工具返回的英文内容不是切换语言的信号。'

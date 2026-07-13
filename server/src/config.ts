@@ -7,6 +7,27 @@ import path from 'node:path'
 import { DEFAULT_EXPOSED_SPECS, normalizeBaseUrl } from './apiSpecs.js'
 
 // ── schema ────────────────────────────────────────────────────
+
+/**
+ * 思考模式等级(与 pi-agent-core ThinkingLevel 对齐:off + minimal..xhigh)。
+ * config 层独立定义 union literal,不 import pi SDK--配置 schema 不耦合 SDK,
+ * readConfig 校验需本地枚举(THINKING_LEVELS)。两者结构相同,赋给 pi 参数时兼容。
+ * 注:pi-ai 的 EXTENDED_THINKING_LEVELS 含 'max',但 pi-agent-core 的 ThinkingLevel 类型不含
+ * (dist 版本),z-wiki 不暴露 max 档--model 支持 max 时由 getAvailableThinkingLevels 返回,
+ * serializeThinking 过滤 THINKING_LEVELS 后不显示,避免 config 与 pi 类型不一致。
+ */
+export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+
+/** 全档列表(供 readConfig 校验 + 前端渲染默认顺序)。与 pi-agent-core ThinkingLevel 一致,新增档需同步。 */
+export const THINKING_LEVELS: readonly ThinkingLevel[] = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+]
+
 export interface VaultEntry {
   /** Vault 的 kb/ 绝对路径。 */
   path: string
@@ -37,6 +58,19 @@ export interface ConfigJson {
    * 空 → 不写 shellPath 字段,pi 走自动探测。仅桌面 win 形态实际消费;dev/unix 形态填了也无害(pi getShellConfig 对不存在路径抛错,但默认工具集不含 bash)。
    */
   shellPath?: string
+  /**
+   * 思考模式等级(ADR-0004 D8):off=关闭思考,其余为 pi 的 thinking level(minimal/low/medium/high/xhigh/max)。
+   * 仅作用于 chat session(ingest 保持 off,后台编译不需思考)。默认 'off'。持久化到 config.json,
+   * createChatSession 读它作初始 thinkingLevel;运行时切换走 POST /api/config/thinking。
+   */
+  thinkingLevel?: ThinkingLevel
+  /**
+   * model 是否支持思考(reasoning,ADR-0004 D8):显式覆盖自动推断。
+   * undefined(默认):generateModelsJson 按 baseUrl 自动推断(DeepSeek -> true)。
+   * true/false:显式声明,覆盖自动(如自建 Qwen-thinking 端点填 true,或强制关 DeepSeek 思考)。
+   * 传入 models.json 的 model.reasoning,pi-ai 据此判断是否支持思考 + 是否传 thinking 参数。
+   */
+  reasoning?: boolean
   /** 全局偏好(首版占位,未来扩展)。 */
   preferences?: Record<string, unknown>
 }
@@ -48,7 +82,14 @@ export interface ModelsJson {
     {
       baseUrl: string
       api: string
-      models: Array<{ id: string; contextWindow: number }>
+      models: Array<{
+        id: string
+        contextWindow: number
+        /** model 是否支持思考(pi-ai model.reasoning);仅 true 时写入,undefined/false 不传。 */
+        reasoning?: boolean
+        /** pi 档位 -> provider effort 映射(pi-ai model.thinkingLevelMap);仅 DeepSeek 自动注入。 */
+        thinkingLevelMap?: Partial<Record<ThinkingLevel, string | null>>
+      }>
     }
   >
 }
@@ -75,6 +116,7 @@ const EMPTY_CONFIG: ConfigJson = {
   vaults: [],
   currentVault: '',
   shellPath: '',
+  thinkingLevel: 'off',
   preferences: {},
 }
 
@@ -90,6 +132,11 @@ export function maskApiKey(key: string): string {
   return `${key.slice(0, 4)}••••••••${key.slice(-4)}`
 }
 
+/** baseUrl 是否指向 DeepSeek(供 reasoning 自动推断 + thinkingLevelMap 注入复用,ADR-0004 D8)。 */
+export function isDeepSeekBaseUrl(baseUrl: string): boolean {
+  return baseUrl.includes('deepseek.com')
+}
+
 /**
  * 纯函数:输入 config 的 baseUrl/api/model/contextWindow,输出符合 pi 格式的 models.json 内容(ADR-0004 D1)。
  * provider key 固定 'custom'(D4)。model 空 → models 数组空(空壳能起,resolveModel 后续抛错)。
@@ -97,8 +144,35 @@ export function maskApiKey(key: string): string {
  * 启动时由 buildAgentContext 调用,结果写入 agentDir/models.json 喂 ModelRegistry。
  */
 export function generateModelsJson(
-  config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model' | 'contextWindow'>,
+  config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model' | 'contextWindow' | 'reasoning'>,
 ): ModelsJson {
+  // reasoning:config 显式覆盖;否则按 baseUrl 自动推断(DeepSeek -> true)。ADR-0004 D8 / ADR-0012。
+  // pi-ai 的 openai-completions deepseek 分支要求 model.reasoning=true 才传 thinking 参数,
+  // 故 reasoning=false/undefined 时不写 reasoning 字段(pi-ai 当 falsy,不传 thinking)。
+  const isDeepSeek = isDeepSeekBaseUrl(config.baseUrl)
+  const reasoning = config.reasoning ?? isDeepSeek
+  const models: ModelsJson['providers'][string]['models'] = []
+  if (config.model) {
+    const m: ModelsJson['providers'][string]['models'][number] = {
+      id: config.model,
+      contextWindow: config.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+    }
+    if (reasoning) {
+      m.reasoning = true
+      // DeepSeek effort 只认 high/max(minimal/low/medium->high, xhigh->max),自动注入映射。
+      // 其他 reasoning model 不注入,走 pi 默认(传 pi 档名,provider 自行映射或忽略)。
+      if (isDeepSeek) {
+        m.thinkingLevelMap = {
+          minimal: 'high',
+          low: 'high',
+          medium: 'high',
+          high: 'high',
+          xhigh: 'max',
+        }
+      }
+    }
+    models.push(m)
+  }
   return {
     providers: {
       [PROVIDER_KEY]: {
@@ -106,9 +180,7 @@ export function generateModelsJson(
         // (未规范化)来,generateModelsJson 都保证喂给 pi 的是干净值,避免 SDK 双拼 suffix。
         baseUrl: normalizeBaseUrl(config.baseUrl, config.api),
         api: config.api,
-        models: config.model
-          ? [{ id: config.model, contextWindow: config.contextWindow ?? DEFAULT_CONTEXT_WINDOW }]
-          : [],
+        models,
       },
     },
   }
@@ -175,6 +247,18 @@ export function readConfig(configPath: string): ConfigJson {
       `[z-wiki] config.json 的 contextWindow 非法(${JSON.stringify(raw.contextWindow)}),回退默认 ${DEFAULT_CONTEXT_WINDOW}。`,
     )
   }
+  // thinkingLevel:必须在 THINKING_LEVELS 内,否则回退 'off'(老 config 无此字段正常,默认 off)。
+  const thinkingLevel: ThinkingLevel =
+    raw.thinkingLevel !== undefined && THINKING_LEVELS.includes(raw.thinkingLevel as ThinkingLevel)
+      ? (raw.thinkingLevel as ThinkingLevel)
+      : 'off'
+  if (raw.thinkingLevel !== undefined && thinkingLevel !== raw.thinkingLevel) {
+    console.warn(
+      `[z-wiki] config.json 的 thinkingLevel 非法(${JSON.stringify(raw.thinkingLevel)}),回退 off。`,
+    )
+  }
+  // reasoning:可选 boolean(显式覆盖自动推断)。非 boolean -> undefined(走自动,ADR-0004 D8)。
+  const reasoning = typeof raw.reasoning === 'boolean' ? raw.reasoning : undefined
   // 显式列举 ConfigJson 已知字段,不 ...raw 全保留——避免老 config 的废弃字段(如 provider)
   // 残留进运行时对象 + 被 writeConfig 写回 config.json(ADR-0004 D1 干掉 provider 要彻底)。
   // 字段兜底:老 config 可能缺 baseUrl/apiKey/model(undefined),回退空字符串避免下游 .trim() 抛错。
@@ -189,6 +273,8 @@ export function readConfig(configPath: string): ConfigJson {
     currentVault: raw.currentVault,
     // shellPath:非字符串(含 undefined)→ 空(走 pi 自动探测)。不 trim,完整路径原样保留。
     shellPath: typeof raw.shellPath === 'string' ? raw.shellPath : '',
+    thinkingLevel,
+    reasoning,
     preferences: raw.preferences,
   }
 }
