@@ -1,6 +1,6 @@
 .PHONY: help install run run-w build typecheck lint format format-check clean
 
-WORKTREE ?= .claude/worktrees/command
+WORKTREE ?= $(CURDIR)
 
 help: ## 显示帮助
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-15s %s\n", $$1, $$2}'
@@ -11,8 +11,12 @@ install: ## 安装依赖
 run: ## 构建并启动主工作区的 desktop(Electron)
 	npm run desktop
 
-run-w: ## 复用主工作区依赖,启动 worktree 的 desktop
-	@ln -sfn "$(CURDIR)/node_modules" "$(WORKTREE)/node_modules"
+run-w: ## 复用主仓库依赖,启动 worktree 的 desktop(在 worktree 或主仓库均可跑)
+	@MAIN_ROOT=$$(git rev-parse --git-common-dir); MAIN_ROOT=$${MAIN_ROOT%/.git}; \
+	test -d "$$MAIN_ROOT/node_modules" || { echo "主仓库 node_modules 不存在,先 cd $$MAIN_ROOT && npm install"; exit 1; }; \
+	if [ "$(abspath $(WORKTREE))" != "$$MAIN_ROOT" ]; then \
+		ln -sfn "$$MAIN_ROOT/node_modules" "$(abspath $(WORKTREE))/node_modules"; \
+	fi
 	cd "$(WORKTREE)" && npm run desktop
 
 build: ## 构建前端 + 后端产物
