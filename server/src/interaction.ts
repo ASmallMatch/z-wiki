@@ -234,7 +234,7 @@ export async function createInteraction(
     const readHint =
       ext === '.md'
         ? `1. 读取 raw/${rawName} 内容`
-        : `1. raw/${rawName} 是非 md 文件,用 bash 调 pandoc 转文本读取:bash: pandoc raw/${rawName} -t markdown(bash 仅限 pandoc 命令)`
+        : `1. raw/${rawName} 是非 md 文件,用 pandoc 工具转文本读取:pandoc({ filePath: "raw/${rawName}" })`
     const prompt = [
       `已上传文件 raw/${rawName}。请按 Ingest 工作流处理:`,
       readHint,

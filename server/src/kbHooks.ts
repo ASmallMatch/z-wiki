@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { SUBSEAM_DIRS, isRawPath } from './kbLayout.js'
-import { isAllowedBashCommand } from './bashWhitelist.js'
+import { ALLOWED_UPLOAD_EXTS } from './uploadExts.js'
 
 // 命中以下任一关键词则视为用户主动要求外部知识,不注入引导
 const EXTERNAL_KW =
@@ -36,6 +36,23 @@ function isWriteToRaw(filePath: string, cwd: string): boolean {
   if (!filePath) return false
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath)
   return isRawPath(abs, cwd)
+}
+
+/**
+ * 判断 read 工具是否应拦截(ADR-0011):非 md 的 pandoc 可转格式用 pandoc 工具,
+ * read 读会拿二进制乱码。后缀在 ALLOWED_UPLOAD_EXTS 且非 .md -> block。
+ * .md 放行;非白名单后缀(如 .txt)放行(read 能读纯文本)。纯函数,便于单测。
+ */
+export function shouldBlockRead(filePath: string): { reason: string } | null {
+  if (!filePath) return null
+  const ext = path.extname(filePath).toLowerCase()
+  if (!ext || ext === '.md') return null
+  if (ALLOWED_UPLOAD_EXTS.includes(ext)) {
+    return {
+      reason: `${ext} 是非 md 文件,read 会拿二进制乱码。请用 pandoc 工具转文本:pandoc({ filePath: "<路径>" })。`,
+    }
+  }
+  return null
 }
 
 /** 知识库钩子 extension factory。 */
@@ -67,15 +84,13 @@ export const kbHooksFactory: ExtensionFactory = (pi) => {
     }
   })
 
-  // tool_call 事件:拦 write/edit 对 raw/ 的写(raw/ 只读,ADR-0002 决策 2)+ bash 命令白名单(ADR-0007 决策 2)
+  // tool_call 事件:拦 read 对非 md(ADR-0011,提示用 pandoc 工具)+ write/edit 对 raw/ 的写(raw/ 只读,ADR-0002 决策 2)
   pi.on('tool_call', async (event, ctx) => {
-    // bash 命令白名单:只放行 pandoc 单条命令,禁元字符,防 rm -rf 绕过
-    if (event.toolName === 'bash') {
-      const command = (event.input as { command?: string }).command ?? ''
-      const result = isAllowedBashCommand(command)
-      if (!result.ok) {
-        return { block: true, reason: result.reason }
-      }
+    if (event.toolName === 'read') {
+      const input = event.input as { file_path?: string; path?: string }
+      const filePath = input.file_path ?? input.path ?? ''
+      const block = shouldBlockRead(filePath)
+      if (block) return { block: true, reason: block.reason }
     }
     if (event.toolName !== 'write' && event.toolName !== 'edit') return
     const filePath = (event.input as { file_path?: string }).file_path

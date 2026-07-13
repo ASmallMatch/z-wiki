@@ -1,6 +1,6 @@
 # ADR-0007: 非 md 上传走 bash+pandoc —— 原文件留 raw/、转换在 agent 侧、bash 白名单限定
 
-- 状态:accepted
+- 状态:accepted(决策 2 被 ADR-0011 取代)
 - 日期:2026-07-07
 - 范围:非 md 文件上传的转换路径、agent bash 工具的引入与约束、pandoc 二进制内置分发。**supersedes ADR-0002 决策 3(端点前置转换)的"端点前置"部分,保留其"不留中间态"精神;extends ADR-0003 D6(默认去掉 bash)为"bash 作为文档解析专用 + 命令白名单限定"**。
 - 关联:ADR-0002(被取代决策 3)、ADR-0003(被扩展 D6)、CONTEXT.md
@@ -36,6 +36,9 @@ pi 的 `ensureTool` 硬编码 `"fd" | "rg"`(`utils/tools-manager.d.ts:2`),不能
 `/api/upload` 去掉"仅 .md"校验,改为 pandoc 支持的后缀白名单(.md/.docx/.xlsx/.pptx/.odt/.epub/.html/.rtf/.csv/.json 等,见决策 5 的 pdf 例外)。非 md 原样落 raw/。转换不落盘——agent 用 bash 调 `pandoc raw/x.docx -t markdown` 在内存拿文本,不写中间 .md 到 raw/。保留决策 3 删 `raw/imported/` 的精神(无转换产物住 raw),只改转换时机(端点前置 → agent 按需)。
 
 ### 决策 2:bash 作为文档解析专用,命令白名单限定(extend ADR-0003 D6)
+
+> ⚠️ **本决策已被 ADR-0011 取代**(pandoc 走 customTool,bash 工具移除,bashWhitelist 删除)。保留原文供追溯。
+
 
 D6 决策 1"默认去掉 bash"调整为:bash 作为文档解析专用能力加回工具集,但仅限文档解析。bash 不走字符串 `AGENT_TOOLS`(pi 默认 bash 无配置入口),而经 `customTools: [createBashToolDefinition(cwd, { spawnHook })]` 注册——spawnHook 用于注入 pandoc bin 目录到 PATH(决策 3)。在 kbHooks 的 `tool_call` 事件里对 bash 做白名单(`ToolCallEventResult.block` 物理拦截,pi 注释"Block tool execution"):
 

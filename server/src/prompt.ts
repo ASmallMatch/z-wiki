@@ -212,6 +212,6 @@ status: active
 
 - 检索知识库文件优先用内置 \`grep\`、\`find\`、\`ls\`、\`read\` 工具
 - 写文件用 \`write\`,改文件用 \`edit\`
-- **读非 md 文档(docx/xlsx/pptx 等)用 \`bash\` 调 pandoc**:\`bash: pandoc raw/x.docx -t markdown\`。bash 仅限 pandoc 命令(白名单限定,其他命令会被拦截)
+- **读非 md 文档(docx/xlsx/pptx 等)用 \`pandoc\` 工具**:\`pandoc({ filePath: "raw/x.docx" })\`。read 读非 md 会被 kbHooks 拦截(拿二进制乱码)
 - 不要假设 Obsidian 或 obsidian-cli 存在;本系统不依赖它们
 `

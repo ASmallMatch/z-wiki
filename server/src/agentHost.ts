@@ -1,16 +1,15 @@
 import path from 'node:path'
 import { existsSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import {
   AuthStorage,
   DefaultResourceLoader,
   ModelRegistry,
   SessionManager,
   createAgentSession,
-  createBashToolDefinition,
   defineTool,
   type AgentSession,
   type AgentSessionEvent,
-  type BashSpawnHook,
 } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import type { Api, Model, TextContent } from '@earendil-works/pi-ai'
@@ -28,28 +27,85 @@ import {
 // thinking 级别(可配置项暴露于此)。provider/model 改走 config.json(ADR-0003 D3.1)。
 const THINKING_LEVEL = 'off' as const
 
-// agent 默认工具集:知识库编译器所需能力 + bash(文档解析专用,白名单限定,ADR-0007 决策 2 扩展 D6)。
-const AGENT_TOOLS = ['read', 'edit', 'write', 'grep', 'find', 'ls', 'bash'] as const
+// agent 默认工具集:知识库编译器所需能力 + pandoc(非 md 转换,customTool,ADR-0011)。
+const AGENT_TOOLS = ['read', 'edit', 'write', 'grep', 'find', 'ls', 'pandoc'] as const
 
 /**
- * 构造 bash 工具(带 spawnHook 注入 pandoc bin 到 PATH,ADR-0007 决策 3)。
- * bash 经 customTools 注册,覆盖 pi 默认 built-in bash(同名 set 覆盖,agent-session.js:1888)。
- * 命令白名单由 kbHooks 的 tool_call 事件强制(只放行 pandoc,禁元字符)。
+ * 构造 pandoc 工具(ADR-0011):customTool 直接 spawn pandoc 二进制,argv 不经 shell,
+ * 无元字符注入面(取代 ADR-0007 决策 2 的 bash+白名单)。复用 ADR-0007 决策 3 的内置 pandoc。
+ * to 固定 markdown(知识库只用 md);from 可选(省略则 pandoc 按后缀推断)。
+ * stdout 截断 256KB + 超时 30s,防大文件撑爆上下文或卡死。
  */
-function makeBashTool(kbRoot: string, agentDir: string) {
-  const pandocBinDir = path.join(agentDir, 'bin')
-  const spawnHook: BashSpawnHook = (ctx) => {
-    // 注入 pandoc bin 到 PATH 前置。PATH 为空时不拼分隔符(防空条目被 bash 当当前目录)
-    const existing = ctx.env.PATH
-    const newPath = existing ? `${pandocBinDir}:${existing}` : pandocBinDir
-    return { ...ctx, env: { ...ctx.env, PATH: newPath } }
-  }
-  return defineTool(createBashToolDefinition(kbRoot, { spawnHook }))
+function makePandocTool(kbRoot: string, agentDir: string) {
+  const pandocBin = path.join(
+    agentDir,
+    'bin',
+    process.platform === 'win32' ? 'pandoc.exe' : 'pandoc',
+  )
+  const MAX_STDOUT = 256 * 1024
+  const PANDOC_TIMEOUT_MS = 30_000
+  return defineTool({
+    name: 'pandoc',
+    label: '文档转换',
+    description:
+      '用 pandoc 把非 md 文件(docx/xlsx/pptx/odt/epub/html/rtf/csv/json 等)转为 markdown 文本。参数:filePath(必填,相对 cwd 的文件路径)、from(可选,输入格式,省略则按后缀推断)。输出固定 markdown。读非 md 文件用此工具,不要用 read(会拿二进制乱码)。',
+    parameters: Type.Object({
+      filePath: Type.String({ description: '要转换的文件路径(相对 cwd)' }),
+      from: Type.Optional(Type.String({ description: '输入格式(如 docx),省略则按后缀推断' })),
+    }),
+    async execute(_toolCallId, params) {
+      const args = params.from
+        ? ['--from', params.from, params.filePath, '-t', 'markdown']
+        : [params.filePath, '-t', 'markdown']
+      const text = await new Promise<string>((resolve, reject) => {
+        const child = spawn(pandocBin, args, { cwd: kbRoot })
+        let buf = ''
+        let stderr = ''
+        let done = false
+        const finish = (out: string) => {
+          if (done) return
+          done = true
+          clearTimeout(timer)
+          resolve(out)
+        }
+        const timer = setTimeout(() => {
+          child.kill()
+          finish(`${buf}\n…(pandoc 超时 30s)`)
+        }, PANDOC_TIMEOUT_MS)
+        child.stdout.setEncoding('utf-8')
+        child.stderr.setEncoding('utf-8')
+        child.stdout.on('data', (d: string) => {
+          buf += d
+          if (buf.length >= MAX_STDOUT) {
+            child.kill()
+            finish(`${buf.slice(0, MAX_STDOUT)}\n…(已截断 ${MAX_STDOUT} 字节)`)
+          }
+        })
+        child.stderr.on('data', (d: string) => {
+          stderr += d
+        })
+        child.on('error', (err) => {
+          clearTimeout(timer)
+          reject(err)
+        })
+        child.on('close', (code) => {
+          if (code !== 0 && !buf) {
+            clearTimeout(timer)
+            reject(new Error(`pandoc 退出码 ${code}: ${stderr}`))
+          } else {
+            finish(buf)
+          }
+        })
+      })
+      const content: TextContent[] = [{ type: 'text', text }]
+      return { content, details: undefined }
+    },
+  })
 }
 
 /**
  * 构造健康检查工具(ADR-0009):只读扫 kb/ 返回结构化 HealthReport。
- * 非 bash 工具(不经 bashWhitelist);用 kbRoot 参数不依赖 agent cwd。
+ * 纯 TS 实现(不调外部二进制,无注入面);用 kbRoot 参数不依赖 agent cwd。
  * description 软约束:仅健康检查,归档走 /skill:health-check(Q4 ii)。
  */
 function makeHealthCheckTool(kbRoot: string) {
@@ -215,7 +271,7 @@ export async function createChatSession(opts: CreateChatSessionOptions): Promise
     sessionManager: SessionManager.create(appRoot, path.join(agentDir, 'sessions', 'chat')),
     // health_check 走 customTools,须同时在 tools 白名单里 pi 才启用,否则被 allowedToolNames 过滤(agent-session isAllowedTool)
     tools: [...AGENT_TOOLS, 'health_check'],
-    customTools: [makeBashTool(kbRoot, agentDir), makeHealthCheckTool(kbRoot)],
+    customTools: [makePandocTool(kbRoot, agentDir), makeHealthCheckTool(kbRoot)],
   })
   session.subscribe(opts.onEvent)
   return session
@@ -248,7 +304,7 @@ export async function createIngestSession(opts: CreateIngestSessionOptions): Pro
     // 持久化到 .pi/sessions/,文件名带时间戳避免覆盖
     sessionManager: SessionManager.create(path.join(agentDir, 'sessions')),
     tools: [...AGENT_TOOLS],
-    customTools: [makeBashTool(kbRoot, agentDir)],
+    customTools: [makePandocTool(kbRoot, agentDir)],
   })
   session.subscribe(opts.onEvent)
   return session
