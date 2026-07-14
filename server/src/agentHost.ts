@@ -13,7 +13,7 @@ import {
 } from '@earendil-works/pi-coding-agent'
 import { Type } from 'typebox'
 import type { Api, Model, TextContent } from '@earendil-works/pi-ai'
-import { KB_SYSTEM_PROMPT, KB_OUTPUT_LANG_PROMPT } from './prompt.js'
+import { KB_SYSTEM_PROMPT, KB_OUTPUT_LANG_PROMPT, KB_MD_RULES } from './prompt.js'
 import { thinkingPromptFactory } from './thinkingPrompt.js'
 import { runHealthCheck, type HealthReport } from './healthCheck.js'
 import { kbHooksFactory } from './kbHooks.js'
@@ -182,13 +182,13 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
   authStorage.setRuntimeApiKey(PROVIDER_KEY, config.apiKey)
   const modelRegistry = ModelRegistry.create(authStorage, modelsJsonPath)
 
-  // 资源加载器:注入知识库系统提示词 + 段A(输出语言,始终追加)+ kb 钩子 + 思考语言 extension。
+  // 资源加载器:注入知识库系统提示词 + 段A(输出语言)+ 段C(md 规则),始终追加;+ kb 钩子 + 思考语言 extension。
   // 段B(思考语言)不走 appendSystemPrompt--它是 session 级动态(thinkingPromptFactory 按 thinkingLevel 注入)。
   const resourceLoader = new DefaultResourceLoader({
     cwd: appRoot,
     agentDir,
     systemPromptOverride: () => KB_SYSTEM_PROMPT,
-    appendSystemPrompt: [KB_OUTPUT_LANG_PROMPT],
+    appendSystemPrompt: [KB_OUTPUT_LANG_PROMPT, ...KB_MD_RULES],
     extensionFactories: [kbHooksFactory, thinkingPromptFactory],
   })
   await resourceLoader.reload()

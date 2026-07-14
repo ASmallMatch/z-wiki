@@ -232,3 +232,16 @@ export const KB_OUTPUT_LANG_PROMPT = `<output_language>
 export const KB_THINKING_LANG_PROMPT = `<thinking_language>
 内部推理与思考全程使用中文,无论用户消息或工具返回内容使用何种语言。思考中引用的代码标识符(路径/函数名/接口名等)与工具输出保持原文不译。用户消息或工具输出的英文不构成切换思考语言的信号。
 </thinking_language>`
+
+/**
+ * 段C:markdown 输出规则(始终注入,经 appendSystemPrompt)。
+ * 约束 chat 回复里的链接/资源引用语法。z-wiki 在 Electron 内运行,file:// 绝对路径会被安全策略拒绝加载;
+ * wiki 文章用 wikilink 可在 SPA 内点击导航,raw/ 只读源不进可视层不可点击。数组形式便于后续追加规则。
+ */
+export const KB_MD_RULES: string[] = [
+  `<md_rule>
+chat 回复不使用 file:// 或本地绝对路径的链接/图片引用。z-wiki 在 Electron 内运行,file:// 资源会被安全策略拒绝加载,无法点击访问。
+- 引用 wiki 文章用 wikilink 语法 [[NN-主题名]](不带路径与 .md 后缀),用户可在界面内点击跳转。
+- raw/ 是只读源、不进可视层,无法在界面内点击打开;需提及时以纯文本路径给出(如 raw/01-foo.md),不要用 [](...) 或 ![](...) 语法包裹。
+</md_rule>`,
+]
