@@ -20,17 +20,27 @@ function escapeHtml(s: string): string {
 
 function parseInline(text: string): string {
   let t = escapeHtml(text)
+  // 图片/wikilink/链接先生成 HTML,但 src/href/alt 里的 _ * 会被下方斜体/加粗正则跨标签
+  // 配对污染(如 ![01_tk.md](url) 的 alt 与 src 的 _ 配对,把 <em> 注入 src,破坏 URL)。
+  // 故先 stash 成占位符,跑完行内格式再换回,属性值不参与 _ * 配对。
+  const stash: string[] = []
+  const place = (html: string): string => {
+    stash.push(html)
+    return `\u0000${stash.length - 1}\u0000`
+  }
   // 图片 ![alt](url)
-  t = t.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />')
+  t = t.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) =>
+    place(`<img src="${url}" alt="${alt}" />`),
+  )
   // wikilink [[a|b]] / [[a]]
   const wikilink = (p: string, label: string): string => {
-    if (p.startsWith('raw/') || p.startsWith('./raw/')) return label
-    return `<a href="/pages/${p}" class="wl">${label}</a>`
+    if (p.startsWith('raw/') || p.startsWith('./raw/')) return place(label)
+    return place(`<a href="/pages/${p}" class="wl">${label}</a>`)
   }
   t = t.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, (_m, p, lbl) => wikilink(p, lbl))
   t = t.replace(/\[\[([^\]]+)\]\]/g, (_m, p) => wikilink(p, p))
   // 链接 [text](url)
-  t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+  t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, txt, url) => place(`<a href="${url}">${txt}</a>`))
   // 加粗 / 斜体 / 行内代码 / 删除线
   t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
   t = t.replace(/__(.+?)__/g, '<strong>$1</strong>')
@@ -38,6 +48,8 @@ function parseInline(text: string): string {
   t = t.replace(/_(.+?)_/g, '<em>$1</em>')
   t = t.replace(/`([^`]+)`/g, '<code>$1</code>')
   t = t.replace(/~~(.+?)~~/g, '<del>$1</del>')
+  // 换回占位符(属性值原样,未被 _ * 污染)
+  t = t.replace(/\u0000(\d+)\u0000/g, (_m, i) => stash[Number(i)] ?? '')
   return t
 }
 

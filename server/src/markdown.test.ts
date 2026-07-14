@@ -91,3 +91,11 @@ test('splitBlocks 块类型:hr 块原文', () => {
   const blocks = splitBlocks('---\n\n正文')
   assert.equal(blocks[0].text, '---')
 })
+
+test('parseInline:图片 alt 与 src 同名 _ 不污染 src(回归 <em> 注入 src)', () => {
+  // 回归:![01_tk.md](url) 的 alt 与 src 都含 _,斜体正则 _(.+?)_ 跨标签配对
+  // 把 <em> 注入 src,破坏 URL。占位符隔离后 src 原样。
+  const out = mdToHtml('![01_tk.md](file:///x/raw/01_tk.md)')
+  assert.ok(out.includes('src="file:///x/raw/01_tk.md"'), `src 应原样,实际:${out}`)
+  assert.ok(!out.includes('<em>'), `不应有 <em> 污染,实际:${out}`)
+})
