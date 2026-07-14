@@ -4,6 +4,7 @@ import gsap from 'gsap'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import type { PageMeta } from '../hooks/useData'
 import type { Theme } from '../hooks/useTheme'
+import { reflowSlot } from './bookShelfReflow.js'
 
 /* ═══════════════════════════════════════════════════
    BookShelf3D — Three.js 圆柱形 3D 书架
@@ -1120,21 +1121,14 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
     function reflow() {
       const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
       for (const book of allSlots) {
-        const pos = book.slotIndex + rot.val / effStep
-        let moved = false
-        let dataOffset = 0
-        if (pos > half + 0.5) {
-          slotMap.delete(book.slotIndex)
-          book.slotIndex -= slots
-          dataOffset = -slots
-          moved = true
-        } else if (pos < -half - 0.5) {
-          slotMap.delete(book.slotIndex)
-          book.slotIndex += slots
-          dataOffset = slots
-          moved = true
-        }
+        const {
+          slotIndex: newSlot,
+          dataOffset,
+          moved,
+        } = reflowSlot(book.slotIndex, rot.val, effStep, half, slots)
         if (moved) {
+          slotMap.delete(book.slotIndex)
+          book.slotIndex = newSlot
           const newDataIndex = (((book.dataIndex + dataOffset) % N) + N) % N
           applySkin(book, newDataIndex)
           slotMap.set(book.slotIndex, book)
