@@ -18,6 +18,7 @@ import {
   useChat,
 } from '../hooks/useChat'
 import { shouldScrollToBottom } from './chatScroll'
+import { ChatNav } from './chatNav'
 
 /** 格式化 token 数:>1k 显示为 1.2k,否则原值。 */
 function fmtTokens(n: number): string {
@@ -237,7 +238,10 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   if (msg.role === 'system') {
     return (
-      <div className={`chat-row chat-row-system ${msg.error ? 'chat-row-error' : ''}`}>
+      <div
+        className={`chat-row chat-row-system ${msg.error ? 'chat-row-error' : ''}`}
+        data-role={msg.role}
+      >
         <span className="chat-mark">{msg.error ? '⚠' : '◆'}</span>
         <span className="chat-system-text">{msg.text}</span>
       </div>
@@ -248,7 +252,7 @@ const MessageBubble = memo(function MessageBubble({
   const segments = msg.segments ?? []
 
   return (
-    <div className={`chat-row chat-row-${isUser ? 'user' : 'fairy'}`}>
+    <div className={`chat-row chat-row-${isUser ? 'user' : 'fairy'}`} data-role={msg.role}>
       {!isUser && <div className="chat-label">Fairy✨</div>}
       <div className="chat-bubble">
         {isUser ? (
@@ -382,6 +386,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const userCount = useMemo(() => messages.filter((m) => m.role === 'user').length, [messages])
 
   const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -499,6 +504,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
               ))
             })()}
       </div>
+      <ChatNav scrollRef={scrollRef} userCount={userCount} streaming={streaming} />
       <div className="chat-quickbar">
         <button
           type="button"

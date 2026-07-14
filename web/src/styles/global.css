@@ -2143,6 +2143,7 @@ body.home-no-scroll {
   flex-direction: column;
   height: 100%;
   width: 100%;
+  position: relative;
 }
 .chat-drawer-header {
   display: flex;
@@ -2278,6 +2279,44 @@ body.home-no-scroll {
    用最后子项 margin-bottom 提供可靠底部留白,与会话区 gap 节奏一致。 */
 .chat-messages > :last-child {
   margin-bottom: var(--sp-3);
+}
+
+/* ── 对话区右侧悬浮导航:在 user 消息间上下跳转。常驻克制(透明 faint),
+   hover 才浮出 accent 淡底;disabled 灰显。容器透传点击,按钮自身接事件。 ── */
+.chat-nav {
+  position: absolute;
+  right: var(--sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  z-index: 5;
+  pointer-events: none;
+}
+.chat-nav-btn {
+  pointer-events: auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.chat-nav-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+.chat-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 /* ── 档案式时间线:所有回合左对齐,role 标签置顶,内容在下 ── */
 .chat-row {
