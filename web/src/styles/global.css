@@ -2670,8 +2670,10 @@ body.home-no-scroll {
   opacity: 0.4;
   cursor: not-allowed;
 }
-/* 思考模式下拉(ADR-0004 D8):外层 relative 供菜单 absolute 向上展开。 */
-.chat-thinking {
+/* 思考模式下拉(ADR-0004 D8):外层 relative 供菜单 absolute 向上展开。
+   独立类名,不复用 .chat-thinking(2558 胶囊样式),否则 accent-bg/左边框
+   会叠到外层 div,使思考按钮与 .chat-quick 按钮视觉不一致。 */
+.chat-thinking-toggle {
   position: relative;
 }
 .chat-thinking-menu {

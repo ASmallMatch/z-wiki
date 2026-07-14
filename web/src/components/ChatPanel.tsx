@@ -321,7 +321,7 @@ function ThinkingButton({
     return () => document.removeEventListener('mousedown', onDoc, true)
   }, [open])
   return (
-    <div className="chat-thinking" ref={ref}>
+    <div className="chat-thinking-toggle" ref={ref}>
       <button
         type="button"
         className="chat-quick"
