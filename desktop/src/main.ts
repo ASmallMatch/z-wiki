@@ -82,8 +82,6 @@ async function bootstrap(): Promise<void> {
     x: bounds?.x,
     y: bounds?.y,
     icon: iconExists ? iconPath : undefined,
-    // 隐藏顶部默认菜单栏(File/Edit/View/Window/Help),按 Alt 可临时唤出(保留快捷键可访问性)。
-    autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
