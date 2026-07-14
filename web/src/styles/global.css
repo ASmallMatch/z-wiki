@@ -51,6 +51,8 @@
   --mono:
     "IBM Plex Mono", "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", "Source Code Pro",
     Menlo, monospace;
+  --serif: Georgia, "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif;
+  --heading-font: var(--sans);
 
   --fs-xs: 0.6875rem;
   --fs-sm: 0.8125rem;
@@ -98,54 +100,115 @@
   --header-stripe: rgba(236, 232, 223, 0.7);
 }
 
-/* ── Draft 主题（浅色：暖纸陶土，对齐 Claude 文档浅色）─────────
+/* ── Draft 主题（浅色：档案室--泛黄纸 + 蓝黑墨水）──────────────
    仅覆盖颜色 token；共享 token（font/spacing/radius/size）继承 :root，不动。
-   配色取自 Claude 文档 --background-light(#fdfdf7)/--primary(#0e0e0e)/
-   --accent-brand(hsl(15,63.1%,59.6%)≈#d97757)+Tailwind stone 调色板。
-   注意：浅深 accent 不同源——深色 Archive 仍靛青 #6b8fc7，切换主题时
-   accent 会从陶土橙跳靛青，是有意为之（浅色归 Anthropic 档案正色）。
-   ─────────────────────────────────────────────────────── */
+   配色方向 ADR-0013：略泛黄纸底 + 蓝黑墨水 accent（档案登记本钢笔墨水）。
+   浅深 accent 同源蓝系：深色 Archive 靛青 #6b8fc7 ↔ 浅色 Draft 蓝黑墨水 #2b4a6f，
+   切换不跳变。陶土橙 #d97757 降级为书架色板偶发暖点缀（ADR-0006 材质正色传承）。
+   ─────────────────────────────────────── */
 :root[data-theme="draft"] {
-  /* 表面：暖米白图纸底（比 Claude 文档 #fdfdf7 降一档避免大面积刺眼），卡片用暖白提亮一档 */
-  --surface: #f0efea;
-  --surface-alt: #fdfdf7;
-  --surface-hover: #e8e6df;
-  --surface-code: #e8e6df;
-  --surface-nav: rgba(240, 239, 234, 0.88);
-  --surface-shelf: #eeece6; /* 书架展台：manilla 信封色，随主题浅化(ADR-0006 D3'，推翻 0005 D3 恒深) */
-  /* 文字：近黑暖调（stone-900 正文 / Claude --primary 标题），层级靠明度 */
+  /* 表面：档案室泛黄纸底（#f7f3ec），卡片用更亮的纸白提一档 */
+  --surface: #f7f3ec;
+  --surface-alt: #fdfbf5;
+  --surface-hover: #efe9da;
+  --surface-code: #efe9da;
+  --surface-nav: rgba(247, 243, 236, 0.9);
+  --surface-shelf: #ece4d2; /* 书架展台：比页面略深的纸色，让书皮立住轮廓(ADR-0013 D3'') */
+  /* 文字：近黑暖调（stone-900 正文 / 近黑标题），层级靠明度，沿用不动 */
   --text: #1c1917;
   --text-bright: #0e0e0e;
   --text-muted: #57534e;
   --text-faint: #78716c;
-  /* 强调：陶土橙（Claude 文档 --accent-brand）；alpha 在浅底略调 */
-  --accent: #d97757;
-  --accent-soft: #d4a27f;
-  --accent-bright: #e88a6a;
-  --accent-bg: rgba(217, 119, 87, 0.12);
-  --accent-border: rgba(217, 119, 87, 0.5);
-  /* 描边：暖灰 stone-200，原子化空心边框 */
-  --border: #e7e5e4;
-  --border-light: #f0eeec;
+  /* 强调：蓝黑墨水（档案登记本钢笔墨水，与 Archive 靛青同源蓝系，切换不跳变；ADR-0013 D1'') */
+  --accent: #2b4a6f;
+  --accent-soft: #4a6b8f;
+  --accent-bright: #3a5d85;
+  --accent-bg: rgba(43, 74, 111, 0.08);
+  --accent-border: rgba(43, 74, 111, 0.4);
+  /* 描边：暖灰纸边，原子化空心边框 */
+  --border: #d9d2c0;
+  --border-light: #e4dfd0;
   --border-inner: rgba(0, 0, 0, 0.04);
-  --rule: #e7e5e4;
+  --rule: #d9d2c0;
   --track-bg: rgba(0, 0, 0, 0.14);
-  /* 阴影：浅底更柔，暖调偏褐黑（与陶土橙同色系，不偏蓝） */
-  --shadow-sm: 0 1px 3px rgba(60, 40, 30, 0.08);
-  --shadow-md: 0 4px 14px rgba(60, 40, 30, 0.1);
-  --shadow-lg: 0 8px 32px rgba(60, 40, 30, 0.14);
-  --glow-accent: 0 0 0 1px var(--accent-border), 0 0 14px rgba(217, 119, 87, 0.22);
-  --selection: rgba(217, 119, 87, 0.3);
-  --card-hover: rgba(217, 119, 87, 0.05);
-  /* 代码高亮：浅底重调一套，保证对比度；注释换暖灰 stone-500 呼应纸调 */
-  --code-kw: #7c5cab;
-  --code-str: #2f8a55;
-  --code-num: #b06a2c;
-  --code-fn: #3a6fb0;
+  /* 阴影：中性偏冷（去暖褐，与蓝黑墨水协调；不偏褐避免烟熏） */
+  --shadow-sm: 0 1px 3px rgba(40, 40, 50, 0.08);
+  --shadow-md: 0 4px 14px rgba(40, 40, 50, 0.1);
+  --shadow-lg: 0 8px 32px rgba(40, 40, 50, 0.14);
+  /* focus/hover ring：墨水描边（去发光，浅底辉光即烟熏；ADR-0013 D4'') */
+  --glow-accent: 0 0 0 1px var(--accent-border);
+  --selection: rgba(43, 74, 111, 0.3);
+  --card-hover: rgba(43, 74, 111, 0.05);
+  /* 代码高亮：蓝黑墨水底下重调一套，保证对比度 */
+  --code-kw: #5a4a8a;
+  --code-str: #2f7a4a;
+  --code-num: #8a5a2a;
+  --code-fn: #2a5a8a;
   --code-cmt: #78716c;
-  --code-op: #8e5fa8;
-  /* header 警戒带：暖深褐，与陶土橙 accent 同色系深浅对比 */
-  --header-stripe: rgba(30, 22, 18, 0.7);
+  --code-op: #6a4a7a;
+  /* header 警戒带次色：蓝黑墨水（与 accent 同源） */
+  --header-stripe: rgba(43, 74, 111, 0.5);
+  /* 标题字体：Draft 下换衬线(档案出版物气质)；正文 sans 不动(ADR-0013 D5'') */
+  --heading-font: var(--serif);
+}
+
+/* ── Draft 组件级覆盖：光晕去除 + 扫描动效转墨迹(ADR-0013 D4'') ──
+   浅底上辉光即烟熏：hero 标题 text-shadow、拉绳 knob/line 辉光全去；
+   hero/fairy 扫描亮峰从透明渐变(光束感)改墨水实色细线，透明度降。
+   用 background-image 覆盖(不重置 background-size，动画位移不破坏)。
+   动画结构与周期不动(切换主题时扫描不突现/突灭)。深色 Archive 不受影响。
+   ─────────────────────────────────────── */
+:root[data-theme="draft"] .hero h1,
+:root[data-theme="draft"] .hero:hover h1 {
+  text-shadow: none;
+}
+:root[data-theme="draft"] .hero::before,
+:root[data-theme="draft"] .hero::after {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent) 45%,
+    var(--accent) 55%,
+    transparent
+  );
+}
+:root[data-theme="draft"] .hero:hover::before,
+:root[data-theme="draft"] .hero:hover::after {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent-bright) 45%,
+    var(--accent-bright) 55%,
+    transparent
+  );
+  opacity: 0.5;
+}
+:root[data-theme="draft"] .drawer-pull-knob,
+:root[data-theme="draft"] .hero:hover .drawer-pull-knob {
+  box-shadow: 0 0 0 2px var(--surface-alt);
+}
+:root[data-theme="draft"] .drawer-pull-line,
+:root[data-theme="draft"] .hero:hover .drawer-pull-line {
+  box-shadow: none;
+}
+:root[data-theme="draft"] .chat-row-fairy::before {
+  background-image: linear-gradient(
+    180deg,
+    transparent,
+    var(--accent) 45%,
+    var(--accent) 55%,
+    transparent
+  );
+}
+:root[data-theme="draft"] .chat-row-fairy:hover::before {
+  background-image: linear-gradient(
+    180deg,
+    transparent,
+    var(--accent-bright) 45%,
+    var(--accent-bright) 55%,
+    transparent
+  );
+  opacity: 0.5;
 }
 
 /* ── Reset ─────────────────────────────────────────────────────── */
@@ -191,7 +254,7 @@ body {
   color: var(--text);
   /* 温润深色基底 + 极淡纸纹噪点 */
   background-color: var(--surface);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.022'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -639,6 +702,7 @@ code {
 }
 
 .hero h1 {
+  font-family: var(--heading-font);
   position: relative;
   font-size: var(--fs-hero);
   font-weight: 800;
@@ -877,6 +941,7 @@ code {
 }
 
 .section-heading {
+  font-family: var(--heading-font);
   position: relative;
   padding-left: var(--sp-4);
   font-size: var(--fs-2xl);
@@ -964,6 +1029,7 @@ code {
 }
 
 .card-title {
+  font-family: var(--heading-font);
   font-size: var(--fs-xl);
   font-weight: 650;
   color: var(--text);
@@ -999,6 +1065,7 @@ code {
 }
 
 .card-sections {
+  font-family: var(--mono);
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
   background: var(--accent-bg);
@@ -1159,6 +1226,7 @@ code {
 }
 
 .page-nav-direction {
+  font-family: var(--mono);
   font-size: var(--fs-xs);
   color: var(--text-faint);
   font-weight: 600;
@@ -1221,6 +1289,7 @@ code {
 /* ── Headings ─────────────────────────────────────────────────── */
 
 .prose h1 {
+  font-family: var(--heading-font);
   font-size: var(--fs-4xl);
   font-weight: 750;
   letter-spacing: -0.025em;
@@ -1231,10 +1300,12 @@ code {
 
 .prose h2,
 .prose h3 {
+  font-family: var(--heading-font);
   scroll-margin-top: 5rem;
 }
 
 .prose h2 {
+  font-family: var(--heading-font);
   font-size: var(--fs-3xl);
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -1673,6 +1744,7 @@ body.home-no-scroll {
 }
 
 .bottom-drawer-count {
+  font-family: var(--mono);
   font-size: var(--fs-xs);
   color: var(--accent);
 }
@@ -1682,6 +1754,7 @@ body.home-no-scroll {
 }
 
 .bottom-drawer-section-title {
+  font-family: var(--mono);
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1695,6 +1768,7 @@ body.home-no-scroll {
 }
 
 .bottom-drawer-section-count {
+  font-family: var(--mono);
   color: var(--accent);
 }
 

@@ -18,12 +18,16 @@ ADR-0005(2026-07-06)定了两条:Draft 与 Archive **共享靛青 accent** `#6b8
 
 ### D1':Draft accent 改陶土橙 `#d97757`,不再与 Archive 同源(supersedes D1)
 
+> **[2026-07-13 superseded by ADR-0013 D1'']** Draft accent 已改蓝黑墨水 `#2b4a6f`(档案登记本钢笔墨水),陶土橙 `#d97757` 降级为书架色板偶发暖点缀。本条的"陶土橙 accent / 切换时品牌色跳变是有意"结论已废止。详见 ADR-0013。
+
 - **Archive** accent 仍是靛青 `#6b8fc7`(不动)。
 - **Draft** accent 改陶土橙 `#d97757`(对齐 Claude 文档 `--accent-brand`),配套 `--accent-soft:#d4a27f` / `--accent-bright:#e88a6a`。
 - **取舍**:切换主题时 accent 会从陶土橙跳靛青(不再"不断裂")。这是有意为之——浅色归 Anthropic 档案材质正色,深色 Archive 保留其冷调工业身份。两套主题各自完整,不再强求共用一个工作色。
 - 已落地:`global.css` 的 `:root[data-theme="draft"]` 块 + hero/drawer-pull 的 10 处硬编码靛青光晕已改 `color-mix(var(--accent-*)…)` 跟随 token。
 
 ### D3':Draft 主题下书架随主题浅化(supersedes D3)
+
+> **[2026-07-13 superseded by ADR-0013 D3'']** Draft 书皮改泛黄纸 `#e8e0cc` + 案卷色板(蓝黑墨水/墨绿/朱砂/陶土橙/墨紫/灰青)。本条的"kraft 牛皮纸书皮 + 陶土色板"结论已废止。换皮机制(本条 D2')不变。详见 ADR-0013。
 
 书架展台与书皮在 Draft 下从"恒深"改为"随主题浅化",走 Claude 文档材质色:
 

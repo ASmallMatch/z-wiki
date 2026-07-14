@@ -62,14 +62,14 @@ const ARCHIVE_ACCENTS = [
   '#9c8b6a', // 暗金褐
 ]
 
-// 陶土色板：浅暖调，Draft 浅书皮上对比适中（ADR-0006 D3'）
+// 案卷色板：档案室 Draft 浅书皮上的墨水/戳印色系（ADR-0013 D3''）
 const DRAFT_ACCENTS = [
-  '#d97757', // 陶土橙（主，对齐 Draft accent）
-  '#c66b5a', // 砖红
-  '#b88a5a', // 赭石
-  '#8a8a5a', // 橄榄
-  '#5a8a8a', // 鸭蛋青（冷色平衡，避免全暖偏腻）
-  '#8a6a7a', // 紫褐
+  '#2b4a6f', // 蓝黑墨水（主，对齐 Draft accent；ADR-0013 D1''）
+  '#5a7a5a', // 档案局墨绿
+  '#8a3a2f', // 朱砂戳印红（偶发暖）
+  '#b88a4a', // 陶土橙（ADR-0006 材质正色传承，降级偶发暖点缀）
+  '#6a5a8a', // 墨紫
+  '#4a6a6a', // 灰青
 ]
 
 // 每套主题的书配色（ADR-0006 D3'：书皮/纸边/accent 色板/灯光随主题）
@@ -92,15 +92,15 @@ const ARCHIVE_COLORS: BookThemeColors = {
   rimLightColor: 0x6b8fc7,
 }
 
-// Draft：暖纸陶土配色（ADR-0006 D3'，取自 Claude 文档材质色变量）
-// kraft 牛皮纸书皮 + 暖白纸边 + 陶土色板；层次:页面 #f0efea < 展台 #eeece6 < 书皮 #e4d1c2
+// Draft：档案室配色（ADR-0013 D3''，泛黄纸 + 蓝黑墨水）
+// 泛黄纸书皮 + 亮纸边 + 案卷色板；层次:页面 #f7f3ec < 展台 #ece4d2 < 书皮 #e8e0cc
 const DRAFT_COLORS: BookThemeColors = {
-  darkBase: '#e4d1c2', // kraft 牛皮纸书皮
-  paper: '#fdfdf7', // 暖白纸页（书顶/书底/书边）
+  darkBase: '#e8e0cc', // 泛黄纸书皮
+  paper: '#fdfbf5', // 最亮纸白（书顶/书底/书边跳出）
   accents: DRAFT_ACCENTS,
-  topAccent: '#d97757', // 陶土橙（对齐 Draft accent）
+  topAccent: '#2b4a6f', // 蓝黑墨水（对齐 Draft accent）
   dirLightIntensity: 0.8,
-  rimLightColor: 0xd97757,
+  rimLightColor: 0x2b4a6f,
 }
 
 function colorsFor(theme: Theme): BookThemeColors {
