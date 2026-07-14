@@ -2351,18 +2351,30 @@ body.home-no-scroll {
   flex-direction: column;
   gap: var(--sp-1);
   padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
-  border-left: 2px solid var(--border-light);
   position: relative;
 }
-.chat-row-user {
+/* chat-row-body:chat-label + chat-bubble 包裹层,承载左边线(border-left + fairy 流光)。
+   actions 留在 body 之外,左边线只到 chat-bubble、不延伸到 actions 行。
+   body 向左拉 sp-4(margin-left 负)让 border-left 落在 chat-row 原 border 位置,
+   padding-left sp-4 把内容缩进回原位,与 actions 对齐。 */
+.chat-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  border-left: 2px solid var(--border-light);
+  margin-left: calc(-1 * var(--sp-4));
+  padding-left: var(--sp-4);
+  position: relative;
+}
+.chat-row-user .chat-row-body {
   border-left-color: var(--accent-border);
 }
-.chat-row-assistant {
+.chat-row-assistant .chat-row-body {
   border-left-color: var(--accent);
 }
-/* fairy 行左边线:复刻 hero 顶部扫描亮峰(垂直版)。底轨沿用 .chat-row 的 --border-light,
+/* fairy 行左边线:复刻 hero 顶部扫描亮峰(垂直版)。底轨沿用 .chat-row-body 的 --border-light,
    ::before 叠加垂直渐变亮峰,亮峰沿左边线上下回转(自上而下、再自下而上)循环流光,hover 转亮。 */
-.chat-row-fairy::before {
+.chat-row-fairy .chat-row-body::before {
   content: "";
   position: absolute;
   left: -2px;
@@ -2378,7 +2390,7 @@ body.home-no-scroll {
   transition: opacity 0.45s ease;
   animation: fairy-flow-vert 4s ease-in-out infinite alternate;
 }
-.chat-row-fairy:hover::before {
+.chat-row-fairy:hover .chat-row-body::before {
   background: linear-gradient(180deg, transparent, var(--accent-bright) 50%, transparent);
 }
 @keyframes fairy-flow-vert {
@@ -2390,7 +2402,7 @@ body.home-no-scroll {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chat-row-fairy::before {
+  .chat-row-fairy .chat-row-body::before {
     animation: none;
     opacity: 1;
     background: linear-gradient(180deg, transparent, var(--accent-border), transparent);
@@ -2402,7 +2414,7 @@ body.home-no-scroll {
   align-items: baseline;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-4);
-  border-left-color: var(--rule);
+  border-left: 2px solid var(--rule);
 }
 .chat-row-error .chat-mark {
   color: #d98a7a;

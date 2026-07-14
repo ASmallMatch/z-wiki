@@ -256,46 +256,48 @@ const MessageBubble = memo(function MessageBubble({
 
   return (
     <div className={`chat-row chat-row-${isUser ? 'user' : 'fairy'}`} data-role={msg.role}>
-      {!isUser && (
-        <div className="chat-label">
-          <span className="chat-label-name">Fairy</span>✨
-        </div>
-      )}
-      <div className="chat-bubble">
-        {isUser ? (
-          <TextBlock text={msg.text ?? ''} />
-        ) : segments.length === 0 && typing ? (
-          <span className="chat-typing">
-            <span className="chat-typing-dot" />
-            <span className="chat-typing-dot" />
-            <span className="chat-typing-dot" />
-          </span>
-        ) : segments.length === 0 ? (
-          <div className="chat-pending">…</div>
-        ) : (
-          <>
-            {segments.map((seg) =>
-              seg.kind === 'text' ? (
-                <TextBlock key={seg.id} text={seg.text} markdown streaming={typing} />
-              ) : seg.kind === 'thinking' ? (
-                <ThinkingCapsule
-                  key={seg.id}
-                  seg={seg}
-                  onToggle={() => onToggleThinking(msg.id, seg.id)}
-                />
-              ) : (
-                <ToolChip key={seg.id} seg={seg} />
-              ),
-            )}
-            {typing && (
-              <span className="chat-typing">
-                <span className="chat-typing-dot" />
-                <span className="chat-typing-dot" />
-                <span className="chat-typing-dot" />
-              </span>
-            )}
-          </>
+      <div className="chat-row-body">
+        {!isUser && (
+          <div className="chat-label">
+            <span className="chat-label-name">Fairy</span>✨
+          </div>
         )}
+        <div className="chat-bubble">
+          {isUser ? (
+            <TextBlock text={msg.text ?? ''} />
+          ) : segments.length === 0 && typing ? (
+            <span className="chat-typing">
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+            </span>
+          ) : segments.length === 0 ? (
+            <div className="chat-pending">…</div>
+          ) : (
+            <>
+              {segments.map((seg) =>
+                seg.kind === 'text' ? (
+                  <TextBlock key={seg.id} text={seg.text} markdown streaming={typing} />
+                ) : seg.kind === 'thinking' ? (
+                  <ThinkingCapsule
+                    key={seg.id}
+                    seg={seg}
+                    onToggle={() => onToggleThinking(msg.id, seg.id)}
+                  />
+                ) : (
+                  <ToolChip key={seg.id} seg={seg} />
+                ),
+              )}
+              {typing && (
+                <span className="chat-typing">
+                  <span className="chat-typing-dot" />
+                  <span className="chat-typing-dot" />
+                  <span className="chat-typing-dot" />
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
       {lastText && (
         <div className="chat-row-actions">
