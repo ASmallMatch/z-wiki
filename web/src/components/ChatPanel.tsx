@@ -297,7 +297,11 @@ const MessageBubble = memo(function MessageBubble({
           </>
         )}
       </div>
-      {lastText && <CopyButton text={lastText.text} />}
+      {lastText && (
+        <div className="chat-row-actions">
+          <CopyButton text={lastText.text} />
+        </div>
+      )}
     </div>
   )
 })
