@@ -114,11 +114,28 @@ async function bootstrap(): Promise<void> {
 
 /** 应用菜单:顶层标题中文,子项用 role 保留系统行为与快捷键(role 在中文系统会自动本地化子项标签)。 */
 function setAppMenu(): void {
+  // macOS 首菜单必须是 appMenu(role):系统级 About/Hide/Quit 与 IME 输入上下文初始化都依赖它。
+  // 0f27497 自定义菜单用 "文件" 占了首菜单位置但没给 appMenu role -> macOS 不为窗口激活输入法,
+  // 中文输不进去(输入法切不到中文、compositionstart 不触发)。恢复 appMenu role 即恢复 IME。
+  const appMenu: MenuItemConstructorOptions =
+    process.platform === 'darwin'
+      ? {
+          role: 'appMenu',
+          submenu: [
+            { role: 'about', label: '关于 z-wiki' },
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide', label: '隐藏' },
+            { role: 'hideOthers', label: '隐藏其他' },
+            { role: 'unhide', label: '显示全部' },
+            { type: 'separator' },
+            { role: 'quit', label: '退出' },
+          ],
+        }
+      : { label: '文件', submenu: [{ role: 'quit', label: '退出' }] }
   const template: MenuItemConstructorOptions[] = [
-    {
-      label: '文件',
-      submenu: [{ role: 'quit', label: '退出' }],
-    },
+    appMenu,
     {
       label: '编辑',
       submenu: [
