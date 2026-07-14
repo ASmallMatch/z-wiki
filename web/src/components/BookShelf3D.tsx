@@ -221,7 +221,8 @@ function makeCoverTexture(data: {
     titleText += '…'
   }
   ctx.shadowColor = data.accent
-  ctx.shadowBlur = 12
+  // 浅色书皮(Draft 泛黄纸)上 accent 阴影会烟熏，去阴影；深色书皮保留墨水辉光
+  ctx.shadowBlur = textColor === '#1c1917' ? 0 : 12
   ctx.fillText(titleText, 256, 310)
   ctx.shadowBlur = 0
   ctx.fillStyle = textColor
