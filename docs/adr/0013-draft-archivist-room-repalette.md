@@ -65,7 +65,7 @@ ADR-0006(2026-07-07)定 Draft 走 Anthropic 档案材质色:陶土橙 `#d97757` 
 
 - `--serif: Georgia, "Songti SC", "STSong", "SimSun", "Noto Serif SC", serif`(macOS Songti SC / Windows SimSun / Noto Serif SC / 默认 serif 逐级回落)。
 - `--heading-font: var(--sans)`(放 `:root`,默认 sans,Archive 继承);`:root[data-theme="draft"]` 覆盖 `--heading-font: var(--serif)`。
-- 标题(`.prose h1/h2/h3`、`.hero h1`、`.card-title`、`.section-heading`)用 `var(--heading-font)`:Draft 下衬线(档案出版物气质),Archive 下 sans(零回归)。
+- 标题(`.prose h1/h2/h3`、`.card-title`、`.section-heading`)用 `var(--heading-font)`:Draft 下衬线(档案出版物气质),Archive 下 sans(零回归)。`.hero h1` 保留 sans(两主题一致)--hero 大字横幅,衬线在大字号下不合适,经反馈保留 sans。
 - 正文 `.prose` / body 保 `var(--sans)` 不动(中文长文可读,衬线小字号发虚是硬伤)。
 - **mono 扩大**:档案标签语义元素(`.card-sections`、`.page-nav-direction`、`.bottom-drawer-section-title`、`.bottom-drawer-count`、`.bottom-drawer-section-count` 等)统一 `var(--mono)`,强化打字机档案语言。
 - **对 ADR-0005 D2 的小扩展**:D2 原「Draft 块仅覆盖颜色 token」,本决策让 Draft 块也覆盖字体语义 token(`--heading-font`)。这是必要的最小扩展--标题衬线是档案室形态的核心一笔,无法只靠颜色 token 实现。

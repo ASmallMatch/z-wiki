@@ -702,7 +702,6 @@ code {
 }
 
 .hero h1 {
-  font-family: var(--heading-font);
   position: relative;
   font-size: var(--fs-hero);
   font-weight: 800;
