@@ -119,6 +119,29 @@ function findStreamingThinking(segs: Segment[]): number {
   return -1
 }
 
+/** done/error 中断兜底:把指定 assistant 的所有 streaming 思考段置 streaming:false
+ *  (collapsed 不动 -> 半截保持展开,让用户看到 agent 想到哪儿)。无 streaming 思考段、
+ *  无 assistantId 或消息不存在时返回原数组引用(短路,避免无谓 re-render)。 */
+function clearStreamingThinkingInMessage(
+  messages: ChatMessage[],
+  assistantId: string | null,
+): ChatMessage[] {
+  if (!assistantId) return messages
+  const idx = messages.findIndex((m) => m.id === assistantId)
+  if (idx === -1) return messages
+  const m = messages[idx]
+  const segs = m.segments ?? []
+  if (!segs.some((s) => s.kind === 'thinking' && s.streaming)) return messages
+  const next = messages.slice()
+  next[idx] = {
+    ...m,
+    segments: segs.map((s) =>
+      s.kind === 'thinking' && s.streaming ? { ...s, streaming: false } : s,
+    ),
+  }
+  return next
+}
+
 /** applyServerMsg 读取的当前状态(从 ref 读,避免 onmessage 闭包 stale)。 */
 interface ChatCurrent {
   /** 当前流式累加的 assistant 回合 id(text_delta/tool 配对用)。 */
@@ -289,12 +312,15 @@ export function applyServerMsg(
         update.prevTokens = cur
         update.contextUsage = msg.stats.contextUsage
       }
+      // 中断兜底:thinking_end 未到时半截思考段仍 streaming -> done 清 streaming(collapsed 不动)
+      update.messages = (prev) => clearStreamingThinkingInMessage(prev, current.streamingId)
       return update
     }
     case 'error': {
       return {
+        // 先清当前 assistant 的 streaming 思考段(半截展开),再追加 system 错误消息
         messages: (prev) => [
-          ...prev,
+          ...clearStreamingThinkingInMessage(prev, current.streamingId),
           { id: ctx.nextId(), role: 'system', text: msg.text ?? '未知错误', error: true },
         ],
         streaming: false,

@@ -372,3 +372,149 @@ test('toggleThinkingSegment 无配对段 -> 内容不变', () => {
   ]
   assert.deepEqual(toggleThinkingSegment(prev, 'a1', 'nope'), prev)
 })
+
+// ── 多段穿插 + 中断态(ticket 03:多段独立 + 半截留显)──
+
+/** 序列应用消息(从空 assistant 起),返回最终 messages。多段穿插场景用。
+ *  nextId 自增,使各段 id 可预期。 */
+function applySequence(
+  msgs: Parameters<typeof applyServerMsg>[0][],
+  assistantId: string,
+  nextId: () => string,
+): ChatMessage[] {
+  let messages: ChatMessage[] = [{ id: assistantId, role: 'assistant', segments: [] }]
+  for (const msg of msgs) {
+    const update = applyServerMsg(msg, { nextId }, { streamingId: assistantId, prevTokens: null })
+    if (update?.messages) messages = update.messages(messages)
+  }
+  return messages
+}
+
+test('多段穿插:思考->工具->思考,两段独立 delta 各归各位不串', () => {
+  // 自增 nextId:s1=第一思考段, s2=工具段, s3=第二思考段
+  let n = 0
+  const nextId = () => `s${++n}`
+  const result = applySequence(
+    [
+      { type: 'thinking_start' },
+      { type: 'thinking_delta', text: '甲' },
+      { type: 'thinking_end' },
+      { type: 'tool_start', tool: 'read', args: { file_path: 'wiki/x.md' } },
+      { type: 'thinking_start' },
+      { type: 'thinking_delta', text: '乙' },
+      { type: 'thinking_end' },
+    ],
+    'a1',
+    nextId,
+  )
+  assert.deepEqual(result, [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [
+        { kind: 'thinking', id: 's1', text: '甲', collapsed: true, streaming: false },
+        {
+          kind: 'tool',
+          id: 's2',
+          tool: 'read',
+          status: 'running',
+          args: { file_path: 'wiki/x.md' },
+        },
+        { kind: 'thinking', id: 's3', text: '乙', collapsed: true, streaming: false },
+      ],
+    },
+  ])
+})
+
+test('done 中断:streaming 思考段 -> streaming:false, collapsed 不变(半截展开)', () => {
+  const update = applyServerMsg({ type: 'done' }, ctx, {
+    streamingId: 'a1',
+    prevTokens: null,
+  })
+  const prev: ChatMessage[] = [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [{ kind: 'thinking', id: 't1', text: '半截', collapsed: false, streaming: true }],
+    },
+  ]
+  assert.deepEqual(update?.messages?.(prev), [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [{ kind: 'thinking', id: 't1', text: '半截', collapsed: false, streaming: false }],
+    },
+  ])
+})
+
+test('done 中断:多段中只清 streaming 段,已收缩段 collapsed 不动', () => {
+  const update = applyServerMsg({ type: 'done' }, ctx, {
+    streamingId: 'a1',
+    prevTokens: null,
+  })
+  const prev: ChatMessage[] = [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [
+        { kind: 'thinking', id: 't1', text: '旧', collapsed: true, streaming: false },
+        { kind: 'tool', id: 't2', tool: 'read', status: 'done' },
+        { kind: 'thinking', id: 't3', text: '半截', collapsed: false, streaming: true },
+      ],
+    },
+  ]
+  assert.deepEqual(update?.messages?.(prev), [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [
+        { kind: 'thinking', id: 't1', text: '旧', collapsed: true, streaming: false },
+        { kind: 'tool', id: 't2', tool: 'read', status: 'done' },
+        { kind: 'thinking', id: 't3', text: '半截', collapsed: false, streaming: false },
+      ],
+    },
+  ])
+})
+
+test('done 正常完成(thinking_end 已到):无 streaming 思考段 -> messages 不变', () => {
+  const update = applyServerMsg({ type: 'done' }, ctx, {
+    streamingId: 'a1',
+    prevTokens: null,
+  })
+  const prev: ChatMessage[] = [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [
+        { kind: 'thinking', id: 't1', text: '完整', collapsed: true, streaming: false },
+        { kind: 'text', id: 't2', text: '回答' },
+      ],
+    },
+  ]
+  assert.deepEqual(update?.messages?.(prev), prev)
+})
+
+test('error 中断:streaming 思考段 -> streaming:false + 追加 system 消息', () => {
+  const update = applyServerMsg(
+    { type: 'error', text: 'boom' },
+    { nextId: () => 'e1' },
+    { streamingId: 'a1', prevTokens: null },
+  )
+  const prev: ChatMessage[] = [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [{ kind: 'thinking', id: 't1', text: '半截', collapsed: false, streaming: true }],
+    },
+  ]
+  assert.deepEqual(update?.messages?.(prev), [
+    {
+      id: 'a1',
+      role: 'assistant',
+      segments: [{ kind: 'thinking', id: 't1', text: '半截', collapsed: false, streaming: false }],
+    },
+    { id: 'e1', role: 'system', text: 'boom', error: true },
+  ])
+  assert.equal(update?.streaming, false)
+  assert.equal(update?.streamingId, null)
+})
