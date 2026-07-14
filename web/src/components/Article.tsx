@@ -163,7 +163,7 @@ export default function Article({ pages }: ArticleProps) {
   if (!content || !page) {
     return (
       <div className="empty-state">
-        <p>页面不存在</p>
+        <p>该页未在书本中</p>
         <Link to="/" className="back-link">
           返回首页
         </Link>

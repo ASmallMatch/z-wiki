@@ -79,9 +79,9 @@ test('fragment wraps prose, excludes frontmatter, renders wikilink + toc', async
     assert.ok(frag, 'fragment present')
     assert.ok(frag!.startsWith('<article class="prose">'))
     assert.ok(!frag!.includes('view: true'), 'frontmatter must not leak into fragment')
-    // [[02-bar]] → <a href="./02-bar.html">;[[raw/x]] → 纯文本(不以 .html)
-    assert.ok(frag!.includes('href="./02-bar.html"'))
-    assert.ok(!frag!.includes('href="./raw/x.html"'))
+    // [[02-bar]] → <a href="/pages/02-bar">;[[raw/x]] → 纯文本(不生成链接)
+    assert.ok(frag!.includes('href="/pages/02-bar"'))
+    assert.ok(!frag!.includes('href="/pages/raw/x"'))
 
     const foo = pages.find((p) => p.stem === '01-foo')
     assert.equal(foo?.title, 'Foo')

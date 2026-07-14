@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { usePages } from './hooks/useData'
 import { ThemeProvider } from './hooks/useTheme'
+import { useWikiLinkNav } from './hooks/useWikiLinkNav'
 import Header from './components/Header'
 import FloatingActions from './components/FloatingActions'
 import ChatDrawer from './components/ChatDrawer'
@@ -23,6 +24,8 @@ function LoadingState() {
 export default function App() {
   const { pages, loading, error } = usePages()
   const [chatOpen, setChatOpen] = useState(false)
+
+  useWikiLinkNav(pages)
 
   // /settings 路由绕过 pages 的 loading/error 门控(设置页不依赖知识库内容)
   const gate: ReactNode = error ? (

@@ -3661,3 +3661,22 @@ body.chat-resizing {
 .settings-about-text a:hover {
   text-decoration: underline;
 }
+
+/* ── 全局 toast(底部居中浮层,主题化,点击关闭)── */
+.toast {
+  position: fixed;
+  bottom: var(--sp-10);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  max-width: 90vw;
+  user-select: none;
+}

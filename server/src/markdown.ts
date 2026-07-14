@@ -25,7 +25,7 @@ function parseInline(text: string): string {
   // wikilink [[a|b]] / [[a]]
   const wikilink = (p: string, label: string): string => {
     if (p.startsWith('raw/') || p.startsWith('./raw/')) return label
-    return `<a href="./${p}.html" class="wl">${label}</a>`
+    return `<a href="/pages/${p}" class="wl">${label}</a>`
   }
   t = t.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, (_m, p, lbl) => wikilink(p, lbl))
   t = t.replace(/\[\[([^\]]+)\]\]/g, (_m, p) => wikilink(p, p))
