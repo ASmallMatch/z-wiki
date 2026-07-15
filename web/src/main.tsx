@@ -10,7 +10,7 @@ import './styles/header.css'
 import './styles/home.css'
 import './styles/article.css'
 import './styles/chat.css'
-import './styles/global.css'
+import './styles/settings.css'
 import './styles/base.css'
 
 createRoot(document.getElementById('root')!).render(
