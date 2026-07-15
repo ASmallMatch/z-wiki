@@ -49,6 +49,7 @@ function parseInline(text: string): string {
   t = t.replace(/`([^`]+)`/g, '<code>$1</code>')
   t = t.replace(/~~(.+?)~~/g, '<del>$1</del>')
   // 换回占位符(属性值原样,未被 _ * 污染)
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: NULL 字符作 stash 占位符分隔符,故意使用(属性值原样保护,防 _ * 污染)
   t = t.replace(/\u0000(\d+)\u0000/g, (_m, i) => stash[Number(i)] ?? '')
   return t
 }

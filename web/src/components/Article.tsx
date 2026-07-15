@@ -196,6 +196,7 @@ export default function Article({ pages }: ArticleProps) {
 
       {/* Main Content */}
       <main className="article-main">
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: content 来自 server buildView 转换的自有 kb markdown,单用户个人 wiki 非外部输入(无 sanitize,未来接外部内容需加 DOMPurify) */}
         <div ref={proseRef} dangerouslySetInnerHTML={{ __html: content }} />
 
         {/* Page Navigation */}
