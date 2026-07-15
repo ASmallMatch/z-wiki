@@ -177,7 +177,7 @@ export async function collectReport(kbRoot: string): Promise<HealthReport> {
   for (const f of files) {
     for (const target of extractWikilinks(f.content)) {
       const resolved = resolveWikilink(target, files, kbRoot)
-      if (resolved && resolved.stem) referencedStems.add(resolved.stem.toLowerCase())
+      if (resolved?.stem) referencedStems.add(resolved.stem.toLowerCase())
     }
   }
   const orphans: OrphanPage[] = wikiFiles

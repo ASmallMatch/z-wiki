@@ -221,7 +221,7 @@ function makeCoverTexture(data: {
   }
   let titleText = data.title
   if (ctx.measureText(titleText).width > TITLE_MAX_W) {
-    while (titleText.length > 0 && ctx.measureText(titleText + '…').width > TITLE_MAX_W) {
+    while (titleText.length > 0 && ctx.measureText(`${titleText}…`).width > TITLE_MAX_W) {
       titleText = titleText.slice(0, -1)
     }
     titleText += '…'
@@ -1134,7 +1134,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       lastFrameTime = now
 
       // 鼠标平滑跟随（dt 缩放）
-      const mouseSmooth = 1 - Math.pow(0.92, dt * 60)
+      const mouseSmooth = 1 - 0.92 ** (dt * 60)
       mouse.x += (targetMouse.x - mouse.x) * mouseSmooth
       mouse.y += (targetMouse.y - mouse.y) * mouseSmooth
       mouseLight.position.set(mouse.x * 6, mouse.y * 4, 28)
@@ -1152,7 +1152,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         if (!virtual) {
           rot.val = clampRot(rot.val, effStep, half)
         }
-        vel *= Math.pow(DRAG_FRICTION, dt * 60)
+        vel *= DRAG_FRICTION ** (dt * 60)
         if (Math.abs(vel) < VEL_SNAP_THRESHOLD) {
           vel = 0
           snapToNearest()
@@ -1193,7 +1193,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       // 刚性期（拖拽/惯性/吸附/点击演出）：position 与 rotation 直设，避免 lerp 追不上快拖
       // 导致书挤到拖动方向尾端；lerp 只留给入场、select 爬升、hover 微调
       const rigid = dragging || vel !== 0 || snapping
-      const smooth = rigid ? 1 : 1 - Math.pow(0.9, dt * 60)
+      const smooth = rigid ? 1 : 1 - 0.9 ** (dt * 60)
       for (const book of allSlots) {
         const isCurrent = book.slotIndex === currentSlot
         const a = book.slotIndex * effStep + rot.val
@@ -1203,7 +1203,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         // select 须尽快爬到 1，否则纵深/缩放/光泽/翻面演出全被压制成"浅浅动一下"
         const introCenter = !introDone && book.slotIndex === 0
         const targetSelect = introCenter ? selectIntro.val : isCurrent ? 1 : 0
-        const selectSmooth = 1 - Math.pow(1 - SELECT_LERP, dt * 60)
+        const selectSmooth = 1 - (1 - SELECT_LERP) ** (dt * 60)
         book.select += (targetSelect - book.select) * selectSmooth
 
         const targetX = Math.sin(a) * RADIUS

@@ -87,7 +87,7 @@ function describeArgs(tool: string, args: unknown): string | null {
   }
   // 兜底:取第一个字符串字段,避免长 JSON 撑爆时间线
   for (const v of Object.values(a)) {
-    if (typeof v === 'string') return v.length > 60 ? v.slice(0, 57) + '…' : v
+    if (typeof v === 'string') return v.length > 60 ? `${v.slice(0, 57)}…` : v
   }
   return null
 }

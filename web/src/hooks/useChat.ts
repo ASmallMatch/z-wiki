@@ -531,7 +531,7 @@ export function useChat() {
     const start = performance.now()
     const id = setInterval(() => {
       const elapsed = (performance.now() - start) / 1000
-      const pct = 90 * (1 - Math.pow(1 - Math.min(1, elapsed / 20), 3))
+      const pct = 90 * (1 - (1 - Math.min(1, elapsed / 20)) ** 3)
       setIngest((prev) => (prev && prev.phase === 'compiling' ? { ...prev, percent: pct } : prev))
     }, 100)
     return () => clearInterval(id)
