@@ -1,0 +1,968 @@
+/* Draft 组件覆盖:chat-row-fairy 扫描转墨迹(ADR-0013 D4'',续 home 段 hero 覆盖) */
+:root[data-theme="draft"] .chat-row-fairy::before {
+  background-image: linear-gradient(
+    180deg,
+    transparent,
+    var(--accent) 45%,
+    var(--accent) 55%,
+    transparent
+  );
+}
+:root[data-theme="draft"] .chat-row-fairy:hover::before {
+  background-image: linear-gradient(
+    180deg,
+    transparent,
+    var(--accent-bright) 45%,
+    var(--accent-bright) 55%,
+    transparent
+  );
+  opacity: 0.5;
+}
+
+/* ── 对话抽屉:窄屏撑满 ───────────────────────────────── */
+@media (max-width: 767px) {
+  .chat-drawer-panel {
+    width: 100vw;
+  }
+}
+
+/* ── 对话抽屉 ─────────────────────────────────────────── */
+.chat-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  visibility: hidden;
+}
+.chat-drawer.open {
+  pointer-events: auto;
+  visibility: visible;
+}
+.chat-drawer-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 12, 0.55);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.chat-drawer.open .chat-drawer-overlay {
+  opacity: 1;
+}
+.chat-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50vw;
+  /* 暗主题:从 --surface-alt 提到 --surface,稍微亮一点;浅主题保持 --surface-alt(最亮白纸底) */
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  box-shadow: var(--shadow-lg);
+}
+:root[data-theme="draft"] .chat-drawer-panel {
+  background: var(--surface-alt);
+}
+.chat-drawer.open .chat-drawer-panel {
+  transform: translateX(0);
+}
+
+/* ── 对话面板 ─────────────────────────────────────────── */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+.chat-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-light);
+}
+/* 左上角连接状态:圆点 + 文字(恢复 bbb27b4 迁移时丢失的 conn-dot)*/
+.chat-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.chat-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-light);
+}
+.chat-conn-dot.on {
+  background: var(--accent);
+}
+/* composer 底部状态行:左 本轮 token+缓存命中率,右 模型名+上下文进度条+按钮 */
+.chat-composer-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-light);
+}
+.chat-status-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.chat-turn-tokens {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+/* 图标 + 数值成对:箭头/闪电与数字垂直居中 */
+.chat-token-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.chat-status-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.chat-model-name {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  max-width: 10em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-ctx {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.chat-ctx-track {
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track-bg);
+  overflow: hidden;
+}
+.chat-ctx-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+.chat-ctx-pct {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.chat-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+.chat-drawer-close:hover {
+  color: var(--text-bright);
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+.chat-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* flex 滚动容器的 padding-bottom 不计入 scrollHeight(Blink),滚到底内容贴底;
+   用最后子项 margin-bottom 提供可靠底部留白,与会话区 gap 节奏一致。 */
+.chat-messages > :last-child {
+  margin-bottom: var(--sp-3);
+}
+
+/* ── 对话区右侧悬浮导航:在 user 消息间上下跳转。常驻克制(透明 faint),
+   hover 才浮出 accent 淡底;disabled 灰显。容器透传点击,按钮自身接事件。 ── */
+.chat-nav {
+  position: absolute;
+  right: var(--sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  z-index: 5;
+  pointer-events: none;
+}
+.chat-nav-btn {
+  pointer-events: auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.chat-nav-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+.chat-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* assistant 行底部消息操作行:单独一行承载消息级按钮(复制等),为将来扩展留位。
+   左对齐;按钮横排,gap 间隔。 */
+.chat-row-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: var(--sp-1);
+  padding-left: var(--sp-4);
+}
+.chat-copy-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+.chat-copy-btn:hover {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+/* ── 档案式时间线:所有回合左对齐,role 标签置顶,内容在下 ── */
+.chat-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  position: relative;
+}
+/* chat-row-body:chat-bubble 包裹层,承载左边线(border-left + fairy 流光)。
+   chat-label 与 actions 留在 body 外,左边缘紧贴竖线(左 0)对齐;chat-bubble 缩进 sp-4。 */
+.chat-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  border-left: 2px solid var(--border-light);
+  padding-left: var(--sp-4);
+  position: relative;
+}
+.chat-row-user .chat-row-body {
+  border-left-color: var(--accent-border);
+}
+.chat-row-assistant .chat-row-body {
+  border-left-color: var(--accent);
+}
+/* fairy 行左边线:复刻 hero 顶部扫描亮峰(垂直版)。底轨沿用 .chat-row-body 的 --border-light,
+   ::before 叠加垂直渐变亮峰,亮峰沿左边线上下回转(自上而下、再自下而上)循环流光,hover 转亮。 */
+.chat-row-fairy .chat-row-body::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, var(--accent-border) 50%, transparent);
+  background-size: 100% 200%;
+  background-repeat: no-repeat;
+  opacity: 0.85;
+  will-change: background-position;
+  transition: opacity 0.45s ease;
+  animation: fairy-flow-vert 4s ease-in-out infinite alternate;
+}
+.chat-row-fairy:hover .chat-row-body::before {
+  background: linear-gradient(180deg, transparent, var(--accent-bright) 50%, transparent);
+}
+@keyframes fairy-flow-vert {
+  0% {
+    background-position: 0 100%;
+  }
+  100% {
+    background-position: 0 0%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-row-fairy .chat-row-body::before {
+    animation: none;
+    opacity: 1;
+    background: linear-gradient(180deg, transparent, var(--accent-border), transparent);
+    background-size: 100% 100%;
+  }
+}
+.chat-row-system {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-4);
+  border-left: 2px solid var(--rule);
+}
+.chat-row-error .chat-mark {
+  color: #d98a7a;
+}
+
+.chat-label {
+  position: relative;
+  padding-left: var(--sp-4);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+}
+/* ❦ 花朵署名标:落在竖线位置(左 0),Fairy✨ 缩进 sp-4 与 chat-bubble 对齐 */
+.chat-label::before {
+  content: "❦";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent-soft);
+}
+/* Fairy 名字炫彩:完整彩虹缓慢横向流动(8s 循环),prefers-reduced-motion 回退静态。
+   ✨ emoji 不吃 background-clip:text,故拆 span 只给 "Fairy" 套渐变;
+   黄色段取暖橙偏 #ffd166 避免浅色背景糊;渐变首尾同色(红)实现无缝循环。 */
+.chat-label-name {
+  background-image: linear-gradient(
+    90deg,
+    #ff5b5b,
+    #ff9a3c,
+    #ffd166,
+    #5ec98f,
+    #5b9bf0,
+    #b266ff,
+    #ff5b5b
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: chat-label-rainbow 8s linear infinite;
+}
+@keyframes chat-label-rainbow {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-label-name {
+    animation: none;
+  }
+}
+
+.chat-mark {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.chat-system-text {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: var(--lh-snug);
+}
+.chat-row-error .chat-system-text {
+  color: #d98a7a;
+}
+
+/* chat bubble:消息内容容器。flex column + gap 让多个 block(splitBlocks 产出的独立
+   .chat-markdown div)与工具 chip 之间留出间距,修复段间间距归零的「挤」;
+   .chat-tool 的 align-self:flex-start 亦依赖此 flex 父容器才生效。 */
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* 文本块:与 .prose 协调的克制排版,保留换行 */
+.chat-text {
+  font-size: var(--fs-sm);
+  line-height: var(--lh);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Chat markdown:assistant 回复的 md 渲染(复用 server mdToHtml)。
+   与 .prose 同源但收窄字号/间距以适配 chat bubble;不用 pre-wrap(md 结构自带段落)。 ── */
+.chat-markdown {
+  font-size: var(--fs-sm);
+  line-height: var(--lh);
+  color: var(--text);
+  word-break: break-word;
+}
+.chat-markdown > :first-child {
+  margin-top: 0;
+}
+.chat-markdown > :last-child {
+  margin-bottom: 0;
+}
+.chat-markdown p {
+  margin: 0 0 var(--sp-2);
+}
+.chat-markdown h1,
+.chat-markdown h2,
+.chat-markdown h3,
+.chat-markdown h4 {
+  /* chat 内标题全压平到正文大小:对话不该有文档式大字层级,靠粗体+margin 区分 */
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  line-height: var(--lh-tight);
+  margin: var(--sp-3) 0 var(--sp-2);
+}
+.chat-markdown ul,
+.chat-markdown ol {
+  margin: 0 0 var(--sp-2);
+  padding-left: 1.25rem;
+}
+.chat-markdown li {
+  margin-bottom: var(--sp-1);
+}
+.chat-markdown li > ul,
+.chat-markdown li > ol {
+  margin: var(--sp-1) 0 0;
+}
+.chat-markdown strong {
+  font-weight: 650;
+  color: var(--text-bright);
+}
+.chat-markdown a {
+  color: var(--accent-bright);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-markdown code {
+  font-family: var(--mono);
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  background: var(--surface-code);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-sm);
+  word-break: break-word;
+}
+.chat-markdown pre {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-code);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  overflow-x: auto;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+}
+.chat-markdown pre code {
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: inherit;
+  word-break: normal;
+}
+.chat-markdown blockquote {
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-left: 3px solid var(--accent-border);
+  color: var(--text-muted);
+}
+.chat-markdown blockquote.callout {
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.chat-markdown hr {
+  border: none;
+  height: 1px;
+  background: var(--border-light);
+  margin: var(--sp-2) 0;
+}
+.chat-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.chat-markdown th,
+.chat-markdown td {
+  padding: var(--sp-1) var(--sp-2);
+  text-align: left;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+}
+.chat-markdown th {
+  font-weight: 650;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+}
+.chat-markdown tbody tr:last-child td {
+  border-bottom: none;
+}
+.chat-row-user .chat-text {
+  color: var(--text-bright);
+}
+
+.chat-pending {
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  letter-spacing: 0.2em;
+  animation: chat-pulse 1.2s ease-in-out infinite;
+}
+@keyframes chat-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* 流式中 loading:三圆点弹跳,贴在助手回合末尾/占位。只要 streaming 未结束就常驻,
+   表示 agent 正在工作(文本流式间隙、工具运行中都可见)。 */
+.chat-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.chat-typing-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+  animation: chat-typing-bounce 1.2s ease-in-out infinite;
+}
+.chat-typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.chat-typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes chat-typing-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-5px);
+    opacity: 0.8;
+  }
+}
+
+/* 工具调用胶囊:mono 内联,带状态点 */
+.chat-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-code);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1;
+}
+.chat-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+.chat-tool-name {
+  color: var(--accent-bright);
+  letter-spacing: 0.04em;
+}
+.chat-tool-state {
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+}
+.chat-tool-args {
+  color: var(--text-faint);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.85em;
+  max-width: 22em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-tool-running .chat-tool-dot {
+  background: var(--accent-bright);
+  box-shadow: 0 0 6px var(--accent-border);
+  animation: chat-pulse 1.1s ease-in-out infinite;
+}
+.chat-tool-running .chat-tool-state {
+  color: var(--accent-bright);
+}
+.chat-tool-done {
+  border-color: var(--accent-border);
+}
+.chat-tool-done .chat-tool-dot {
+  background: var(--accent);
+}
+.chat-tool-error {
+  border-color: rgba(217, 138, 122, 0.5);
+}
+.chat-tool-error .chat-tool-dot {
+  background: #d98a7a;
+}
+.chat-tool-error .chat-tool-state {
+  color: #d98a7a;
+}
+
+/* ── 思考胶囊:reasoning 模型的思维链(ADR-0004 D8 第三环)。
+   收缩态一行"思考 · N 字"可点展开;展开态纯文本 pre-wrap + max-height + 滚动。
+   视觉与 tool chip(行动)/text(正文)区分:accent-bg 底 + 左边框 + muted 斜体内省感。 ── */
+.chat-thinking {
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent-border);
+  border-radius: var(--r-md);
+  background: var(--accent-bg);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  max-width: 100%;
+}
+.chat-thinking-collapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  cursor: pointer;
+  line-height: 1;
+}
+.chat-thinking-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1;
+}
+.chat-thinking-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+.chat-thinking-dot.streaming {
+  background: var(--accent-bright);
+  box-shadow: 0 0 6px var(--accent-border);
+  animation: chat-pulse 1.1s ease-in-out infinite;
+}
+.chat-thinking-label {
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+.chat-thinking-count {
+  color: var(--text-faint);
+}
+.chat-thinking-arrow {
+  color: var(--text-faint);
+  margin-left: var(--sp-1);
+}
+.chat-thinking-text {
+  padding: 0 var(--sp-2) var(--sp-2);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+/* 输入区:composer(relative column) + 顶部拖拽手柄 + textarea 占满 + 右下浮层按钮组 */
+.chat-input-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  /* 作为对话框框体悬浮在 panel 内:外 margin 与消息区/抽屉边缘留白,
+     内 padding 让文字与按钮与框边分离;top 略大给顶部 resize handle 呼吸空间 */
+  margin: var(--sp-2) var(--sp-3) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+}
+/* 快捷按钮栏:composer(chat-input-row)上方,横排左对齐(ADR-0009 承载)。
+   左右对齐 textarea 边缘:框 margin(sp-3)+ 框 padding(sp-3)。按钮少时内容自适应宽度,
+   不追 upload 按钮左边缘(浮动)。不设 overflow-x:auto--会让 overflow-y 计算为 auto,
+   裁剪思考菜单(bottom:100% 向上溢出);按钮增多溢出时改 portal 或分组。*/
+.chat-quickbar {
+  display: flex;
+  gap: var(--sp-2);
+  /* 对齐下方 chat-input-row 左边框(border 外侧 = 框 margin sp-3) */
+  margin: 0 var(--sp-3);
+}
+.chat-quick {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.chat-quick:hover:not(:disabled) {
+  color: var(--accent-bright);
+  border-color: var(--accent-border);
+}
+.chat-quick:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* 思考模式下拉(ADR-0004 D8):外层 relative 供菜单 absolute 向上展开。
+   独立类名,不复用 .chat-thinking(2558 胶囊样式),否则 accent-bg/左边框
+   会叠到外层 div,使思考按钮与 .chat-quick 按钮视觉不一致。 */
+.chat-thinking-toggle {
+  position: relative;
+}
+.chat-thinking-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: var(--sp-1);
+  list-style: none;
+  padding: var(--sp-1);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  z-index: 10;
+}
+.chat-thinking-menu button {
+  display: block;
+  width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--sans);
+  font-size: var(--fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.chat-thinking-menu button:hover {
+  color: var(--accent-bright);
+}
+.chat-thinking-menu button.active {
+  color: var(--accent-bright);
+  font-weight: 600;
+}
+/* unsupported 提示:model 不支持思考时,菜单显示提示而非档位列表。 */
+.chat-thinking-hint {
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-snug);
+  white-space: normal;
+  max-width: 220px;
+}
+.chat-input {
+  width: 100%;
+  flex: 1;
+  resize: none;
+  /* 按钮已移至 composer 底部状态行,textarea 无需右侧避让,左右等距内壁 */
+  padding: var(--sp-1) var(--sp-2);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  outline: none;
+  transition: box-shadow 0.15s;
+}
+.chat-input::placeholder {
+  color: var(--text-muted);
+}
+.chat-input:focus {
+  /* composer 无独立 border,focus 用 inset ring 反馈,不挤占文字 */
+  box-shadow: inset 0 0 0 1px var(--accent-border);
+}
+
+/* ingest 进度角标:浮在 chat-input-row 框外侧右上角(框上边线外、右对齐)。
+   复用 chat-ctx-track/fill/pct 视觉(48px×4px 条 + accent fill + mono pct);
+   failed 时 fill 覆盖为红(与 chat-tool-error 同色)。框外浮层,不占 textarea 空间。*/
+.chat-ingest {
+  position: absolute;
+  /* bottom:100% 顶到 composer 框上边线外侧,margin-bottom 留间距 */
+  bottom: 100%;
+  margin-bottom: var(--sp-1);
+  right: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  z-index: 2;
+  /* 角标仅展示,不挡交互 */
+  pointer-events: none;
+}
+.chat-ingest-label {
+  white-space: nowrap;
+}
+.chat-ingest-failed .chat-ctx-fill {
+  background: #d98a7a;
+}
+
+/* 发送按钮(图标):向右箭矢,无填充无边框 */
+.chat-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px * 4 / 3);
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  /* 图标色:var(--text-muted),与上传按钮一致(暗主题亮、亮主题暗) */
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.chat-send:hover:not(:disabled) {
+  color: var(--accent-bright);
+}
+.chat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 上传按钮(图标):upload,无填充无边框 */
+.chat-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px * 4 / 3);
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  /* 与左侧状态信息拉开间距:上传到发送因两按钮内 SVG 居中留白显宽,
+     不加此 margin 上传会视觉偏左(离状态信息近、离发送远),加后三者间距视觉一致 */
+  margin-left: var(--sp-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.chat-upload:hover:not(:disabled) {
+  color: var(--accent-bright);
+}
+.chat-upload:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 上传/发送按钮已移入 .chat-composer-status 状态行(原 absolute 浮层已移除) */
+
+/* 顶部拖拽手柄:向上拖增大输入框高度,最高半屏(逻辑见 ChatPanel) */
+.chat-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.chat-resize-handle::before {
+  content: "";
+  width: 2rem;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--border);
+  transition: background 0.15s;
+}
+.chat-resize-handle:hover::before {
+  background: var(--accent-border);
+}
+
+/* 拖拽中禁选中文本 + 全局保持 ns-resize 光标 */
+body.chat-resizing {
+  user-select: none;
+  cursor: ns-resize;
+}
