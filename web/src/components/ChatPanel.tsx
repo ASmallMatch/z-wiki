@@ -417,7 +417,6 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
   // 上次消息数与流式状态:区分"该滚"(新消息/流式/流结束)与"不该滚"(toggle 胶囊)。
   const prevMsgLenRef = useRef(messages.length)
   const prevStreamingRef = useRef(streaming)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: messages 是滚动触发信号(消息增长/流式 delta 时滚到底),非直接引用
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
