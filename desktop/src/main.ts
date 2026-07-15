@@ -20,6 +20,13 @@ app.setName('z-wiki')
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(__dirname, 'preload.cjs')
 
+// 窗口尺寸约束:初始值仅首次启动(无持久化 bounds)时用,之后读 preferences.windowBounds;
+// 最小值防拖太小把布局压没。持久化的旧小尺寸由 Electron 构造时自动 clamp 到 min,无需手动处理。
+const DEFAULT_WINDOW_WIDTH = 1280
+const DEFAULT_WINDOW_HEIGHT = 800
+const MIN_WINDOW_WIDTH = 1080
+const MIN_WINDOW_HEIGHT = 675
+
 let interaction: Awaited<ReturnType<typeof createServer>> | null = null
 let mainWindow: BrowserWindow | null = null
 let configPath = ''
@@ -77,8 +84,10 @@ async function bootstrap(): Promise<void> {
   const iconPath = path.join(__dirname, '..', 'build', 'icon.png')
   const iconExists = fs.existsSync(iconPath)
   mainWindow = new BrowserWindow({
-    width: bounds?.width ?? 1280,
-    height: bounds?.height ?? 800,
+    width: bounds?.width ?? DEFAULT_WINDOW_WIDTH,
+    height: bounds?.height ?? DEFAULT_WINDOW_HEIGHT,
+    minWidth: MIN_WINDOW_WIDTH,
+    minHeight: MIN_WINDOW_HEIGHT,
     x: bounds?.x,
     y: bounds?.y,
     icon: iconExists ? iconPath : undefined,
