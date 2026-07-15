@@ -2,7 +2,12 @@
 // 注入 mock ctx(nextId 固定)+ current(streamingId/prevTokens),断言返回的更新。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyServerMsg, toggleThinkingSegment, type ChatMessage } from './useChat.js'
+import {
+  applyServerMsg,
+  toggleThinkingSegment,
+  vaultChangedReset,
+  type ChatMessage,
+} from './useChat.js'
 
 const ctx = { nextId: () => 's1' }
 
@@ -517,4 +522,21 @@ test('error 中断:streaming 思考段 -> streaming:false + 追加 system 消息
   ])
   assert.equal(update?.streaming, false)
   assert.equal(update?.streamingId, null)
+})
+
+// ── vault_changed 重置(vaultChangedReset 纯函数:切库时旧库上下文作废,全部归零)──
+
+test('vaultChangedReset 返回全空初值 + vaultSwitching true(切库重连标记)', () => {
+  // 守护:切库时消息/流式态/累计基准/上下文占用/ingest 角标全部清空,且标记切库重连(短延迟)。
+  // 漏重置任一字段或改错值 -> 本测试报。
+  assert.deepEqual(vaultChangedReset(), {
+    messages: [],
+    streaming: false,
+    streamingId: null,
+    prevTokens: null,
+    turnStats: null,
+    contextUsage: null,
+    ingest: null,
+    vaultSwitching: true,
+  })
 })
