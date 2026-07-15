@@ -500,8 +500,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       (a, b) => new Date(b.updated).getTime() - new Date(a.updated).getTime(),
     )
     const N = sorted.length
-    // slot0 钉中心，两侧对称；强制奇数以保证 slot0 存在且 slotIndex 为整数（偶数 N 时退一本）
-    let slots = Math.min(SLOT_COUNT, N)
+    // slot0 钉中心。N≥4 时 slots≤N-1 留换皮空间走 reflow（virtual=true，自由拖滚遍）；
+    // N=3 满窗 slots=N 走 clampRot（slots<3 退单本路径，无法 reflow）。奇数化保 slot0。
+    let slots = Math.min(N, SLOT_COUNT, Math.max(N - 1, 3))
     if (slots % 2 === 0) slots -= 1
     const half = (slots - 1) / 2 // 半窗口（slotIndex 范围 -half..half）
     const virtual = N > slots // 是否启用换皮虚拟化
@@ -868,13 +869,13 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
     }
 
     /**
-     * 无 virtual(N≤17)多书:rot 硬夹到 ±min(half*effStep, soloMaxRot),防 x=sin(a)*RADIUS
-     * 飞出视口。硬 clamp(墙=最远槽位,松手 snap 对齐)区别于单本书橡皮筋(slots<=1 无槽
-     * 可吸、渐近回弹),两者语义不同故不复用。virtual 路径靠 reflow 收敛 pos,不夹。
+     * 仅 N=3 残留（half=1、virtual=false）：rot 硬夹到 ±half*effStep（墙=最远槽位，松手
+     * snap 对齐）。N≥4 走 reflow 不经此函数；单本书(slots<=1)橡皮筋语义不同不复用。
+     * limit 曾误取 min(half*effStep, soloMaxRot)，但 half=1 时 soloMaxRot 恒为死约束，已移除。
      */
     function clampRot(val: number): number {
       const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
-      const limit = Math.min(half * effStep, soloMaxRot)
+      const limit = half * effStep
       return Math.max(-limit, Math.min(limit, val))
     }
 
