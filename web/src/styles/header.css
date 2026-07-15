@@ -1,0 +1,346 @@
+/* ── Header ────────────────────────────────────────────────────── */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--nav-h);
+  background: var(--surface-nav);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.header::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--accent),
+    var(--accent) 8px,
+    var(--header-stripe) 8px,
+    var(--header-stripe) 16px
+  );
+  opacity: 0.45;
+}
+
+.header-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-6);
+  gap: var(--sp-6);
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-lg);
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.header-logo-mono {
+  font-family: var(--mono);
+  font-size: 0.75em;
+  font-weight: 700;
+  color: var(--text-bright);
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-xl);
+  background: var(--accent-bg);
+  letter-spacing: 0.04em;
+}
+
+.header-logo:hover {
+  color: var(--accent);
+}
+
+.header-logo:hover .header-logo-mono {
+  background: var(--accent);
+  color: var(--text-bright);
+}
+
+/* ── Breadcrumb ────────────────────────────────────────────────── */
+
+.header-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.breadcrumb-link {
+  color: var(--text-faint);
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: var(--accent);
+}
+
+.breadcrumb-sep {
+  color: var(--border);
+  flex-shrink: 0;
+}
+
+.breadcrumb-current {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .header-breadcrumb {
+    font-size: var(--fs-xs);
+  }
+}
+
+/* ── Search ────────────────────────────────────────────────────── */
+
+.header-search {
+  position: relative;
+  flex: 1;
+  max-width: 22rem;
+  margin-left: auto;
+}
+
+.header-search .search-icon {
+  position: absolute;
+  left: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.header-search input {
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 var(--sp-3) 0 var(--sp-8);
+  font-size: var(--fs-sm);
+  font-family: var(--sans);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-pill);
+  background: var(--surface-alt);
+  color: var(--text);
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s;
+}
+
+.header-search input:focus {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 0 0 1px var(--border-inner),
+    0 0 0 2px var(--accent-bg);
+  background: var(--surface);
+}
+
+.header-search input::placeholder {
+  color: var(--text-faint);
+}
+
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  right: 0;
+  background: var(--surface-alt);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-lg);
+  box-shadow:
+    inset 0 0 0 1px var(--border-inner),
+    var(--shadow-lg);
+  z-index: 50;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: var(--sp-1);
+}
+
+.search-item {
+  display: block;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.1s;
+}
+
+.search-item:hover,
+.search-item.highlighted {
+  background: var(--accent-bg);
+}
+
+.search-item-title {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.search-item-summary {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 0.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Header 对话按钮 ─────────────────────────────────── */
+.header-chat-btn {
+  margin-left: var(--sp-4);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-pill);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+.header-chat-btn:hover {
+  color: var(--accent-bright);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.header-chat-btn.active {
+  color: var(--accent-bright);
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+/* Header 设置按钮 */
+.header-settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+  flex-shrink: 0;
+}
+.header-settings-btn:hover {
+  background: var(--accent-bg);
+  border-color: var(--border);
+  color: var(--accent-bright);
+}
+.header-settings-btn.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent-bright);
+}
+/* ── Header 主题开关（设置按钮右侧 pill 滑动开关）──────────────
+   52×28 pill，日左月右。暗(archive)→滑块在左盖日(目标)，露月(当前)；
+   亮(draft)→在右盖月(目标)，露日(当前)。knob 位置=当前主题(左暗右亮)。
+   纯图标无文字。hover/focus 调性对齐 .header-settings-btn。
+   ─────────────────────────────────────────────────────── */
+.theme-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 52px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-pill);
+  background: var(--surface-alt);
+  color: var(--text-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-bright);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 两端图标槽位：各占一半，当前侧（被滑块盖住）高亮 */
+.theme-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition:
+    opacity 0.2s,
+    color 0.2s;
+}
+
+.theme-toggle[aria-checked="false"] .theme-toggle-icon.moon {
+  opacity: 1;
+  color: var(--accent-bright);
+}
+
+.theme-toggle[aria-checked="true"] .theme-toggle-icon.sun {
+  opacity: 1;
+  color: var(--accent-bright);
+}
+
+/* 滑块：浮于图标上方。暗→左(盖日·目标)，露月(当前)；亮→右移 26px(盖月·目标)，露日(当前)。
+   暗主题：accent 掺黑降明度(深蓝)，比 pill 更暗形成对比；
+   浅主题：accent 掺 --text-faint 降饱和(暖棕)，不吸睛。 */
+.theme-toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 50%, #000);
+  border: 1px solid var(--accent-border);
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+:root[data-theme="draft"] .theme-toggle-knob {
+  background: color-mix(in srgb, var(--accent) 60%, var(--text-faint));
+}
+
+.theme-toggle[aria-checked="true"] .theme-toggle-knob {
+  transform: translateX(26px);
+}
