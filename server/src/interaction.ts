@@ -38,6 +38,7 @@ import { hasIndexChanged } from './hasIndexChanged.js'
 import { rawDir } from './kbLayout.js'
 import { relayEvent, type RelayCtx } from './relayEvent.js'
 import { checkUploadExt } from './uploadExts.js'
+import { slugify, vaultDisplayName } from './vaultLayout.js'
 
 export interface Interaction {
   app: FastifyInstance
@@ -361,23 +362,6 @@ export async function createInteraction(
 
   // ── Vault 管理 + 配置端点(ADR-0003 D4/D5/D7/D3.1)─────────────────
   // config.json 是真相源,读写均经 withFileLock 串行化(切库写 currentVault 与设置页写 apiKey 可能并发)。
-
-  /** 把名字转为安全的目录名段(用于派生新 Vault 的 kb/ 路径)。 */
-  function slugify(name: string): string {
-    return (
-      name
-        .trim()
-        .replace(/[^\w.一-龥-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || 'vault'
-    )
-  }
-
-  /** 查 config.json 中已知 Vault 的显示名(找不到则取 kb/ 父目录名)。 */
-  function vaultDisplayName(kbRootPath: string, cfg: { vaults?: VaultEntry[] }): string {
-    const found = cfg.vaults?.find((v) => v.path === kbRootPath)
-    return found?.name || path.basename(path.dirname(kbRootPath)) || kbRootPath
-  }
 
   // 已知 Vault 列表 + 当前打开项(运行时真相 = currentKbRoot,config.currentVault 跟随同步)。
   app.get('/api/vaults', async () => {
