@@ -13,6 +13,7 @@ import './styles/chat.css'
 import './styles/settings.css'
 import './styles/base.css'
 
+// biome-ignore lint/style/noNonNullAssertion: #root 元素在 index.html 必然存在
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>

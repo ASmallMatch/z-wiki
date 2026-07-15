@@ -423,6 +423,7 @@ function makeTopBottomTexture(paper: string, accent: string): THREE.CanvasTextur
 
 // canvas 2d 上下文快捷获取
 function ctx2d(canvas: HTMLCanvasElement) {
+  // biome-ignore lint/style/noNonNullAssertion: 2d context 对 HTMLCanvasElement 不会返回 null
   return canvas.getContext('2d')!
 }
 
@@ -750,10 +751,11 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
 
     // ---------- 指针事件 ----------
     function mouseToNDC(e: PointerEvent) {
-      const rect = container!.getBoundingClientRect()
+      if (!container) return { x: 0, y: 0 }
+      const rect = container.getBoundingClientRect()
       return {
-        x: ((e.clientX - rect.left) / container!.clientWidth) * 2 - 1,
-        y: -((e.clientY - rect.top) / container!.clientHeight) * 2 + 1,
+        x: ((e.clientX - rect.left) / container.clientWidth) * 2 - 1,
+        y: -((e.clientY - rect.top) / container.clientHeight) * 2 + 1,
       }
     }
 
@@ -913,6 +915,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
     function onPointerDown(e: PointerEvent) {
       // 入场期间完全吞掉所有交互
       if (!introDone) return
+      if (!container) return
       // 中键：toggle 轨道球（仅当命中中心抽出本）
       if (e.button === 1) {
         e.preventDefault()
@@ -933,7 +936,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         }
         beginDrag(e.clientX)
         try {
-          container!.setPointerCapture(e.pointerId)
+          container.setPointerCapture(e.pointerId)
         } catch {
           /* pointer capture 失败可忽略 */
         }
@@ -943,9 +946,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
     // 结束拖拽：释放 capture、置 dragging=false。cancelled 时丢弃惯性并对齐。
     // 点击判定与惯性初速计算需要完整 PointerEvent（clientX/clientY），留在 onPointerUp 处理
     function endDrag(pointerId: number, cancelled: boolean) {
-      if (!dragging) return
+      if (!dragging || !container) return
       try {
-        container!.releasePointerCapture(pointerId)
+        container.releasePointerCapture(pointerId)
       } catch {
         /* pointer capture 失败可忽略 */
       }
@@ -958,11 +961,11 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
 
     function onPointerUp(e: PointerEvent) {
       if (!introDone) return
-      if (e.button !== 0 || !dragging) return
+      if (e.button !== 0 || !dragging || !container) return
       if (!dragMoved) {
         // 短按点击：释放 capture、退出拖拽态。须用真实 clientY 算 NDC，否则 ndc.y=NaN 命中失败
         try {
-          container!.releasePointerCapture(e.pointerId)
+          container.releasePointerCapture(e.pointerId)
         } catch {
           /* pointer capture 失败可忽略 */
         }
@@ -1076,8 +1079,9 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
     }
     let soloMaxRot = computeSoloMaxRot()
     function onResize() {
-      const w = container!.clientWidth
-      const h = container!.clientHeight
+      if (!container) return
+      const w = container.clientWidth
+      const h = container.clientHeight
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)

@@ -24,6 +24,7 @@ test('shouldBlockRead: pandoc 可转格式 block', () => {
   ]) {
     const r = shouldBlockRead(`raw/report${ext}`)
     assert.ok(r, `${ext} 应 block`)
+    // biome-ignore lint/style/noNonNullAssertion: 前有 assert.ok(r) 保证非空,TS 不自动窄化 assert.ok
     assert.match(r!.reason, /pandoc/, `${ext} reason 应提示 pandoc`)
   }
 })
