@@ -333,8 +333,6 @@
   padding: var(--sp-1) var(--sp-3);
 }
 
-/* Header 设置按钮 */
-
 /* ── Settings 表单统一:field(label + control)+ 自定义下拉 + 眼睛 ── */
 
 .settings-field {
