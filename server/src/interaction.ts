@@ -14,11 +14,9 @@ import fastifyWebsocket from '@fastify/websocket'
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify'
 import {
   type AgentContext,
-  applyModelToSessions,
   applyThinkingToChatSession,
   createChatSession as defaultCreateChatSession,
   createIngestSession as defaultCreateIngestSession,
-  reloadAgentConfig,
   resolveModel,
   updateConfig,
   withFileLock,
@@ -35,6 +33,7 @@ import {
   type VaultEntry,
   writeConfig,
 } from './config.js'
+import { reloadLlmConfig, ConfigReloadError } from './configReload.js'
 import { hasIndexChanged } from './hasIndexChanged.js'
 import { buildIngestPrompt } from './ingestPrompt.js'
 import { rawDir } from './kbLayout.js'
@@ -557,30 +556,35 @@ export async function createInteraction(
       return reply.code(400).send({ error: 'contextWindow 必须是正整数' })
     }
 
-    // 写 config(updateConfig:锁内 read-modify-write + readback 规范化),读回规范化值喂 reload
-    const updatedCfg = await updateConfig(configPath, (cfg) => ({
-      ...cfg,
-      baseUrl: body.baseUrl as string,
-      api: body.api as string,
-      model: body.model as string,
-      apiKey: body.apiKey as string,
-      // contextWindow / reasoning:仅在提供时覆盖(条件展开,保持原"undefined 不改"语义)
-      ...(contextWindowNum !== undefined ? { contextWindow: contextWindowNum } : {}),
-      ...(typeof body.reasoning === 'boolean' ? { reasoning: body.reasoning } : {}),
-    }))
-
-    // 冷重载:refresh modelRegistry + setRuntimeApiKey + resolveModel(D5)
-    // 注意:config.json 已写入,即使 reload 失败配置也已保存——错误信息须如实告知。
+    // 冷重载(configReload.ts 编排:updateConfig 写 -> reloadAgentConfig reload -> applyModelToSessions apply,
+    // 不丢上下文 D5)。失败分 stage:reload 失败="配置已保存但重载失败";apply 失败="已保存且重载成功但换
+    // model 失败"(修原先 apply 无 catch 的潜伏 unhandled)。失败一律不广播。mutator 决定改哪些字段。
     let model: Model<Api>
     try {
-      model = await reloadAgentConfig(agentCtx, updatedCfg)
+      model = await reloadLlmConfig(
+        { configPath, agentCtx, getSessions: () => [...chatSessions.values(), ...ingestSessions] },
+        (cfg) => ({
+          ...cfg,
+          baseUrl: body.baseUrl as string,
+          api: body.api as string,
+          model: body.model as string,
+          apiKey: body.apiKey as string,
+          // contextWindow / reasoning:仅在提供时覆盖(条件展开,保持原"undefined 不改"语义)
+          ...(contextWindowNum !== undefined ? { contextWindow: contextWindowNum } : {}),
+          ...(typeof body.reasoning === 'boolean' ? { reasoning: body.reasoning } : {}),
+        }),
+      )
     } catch (err) {
-      return reply.code(500).send({
-        error: `配置已保存但重载失败:${err instanceof Error ? err.message : String(err)}。请修正后重新载入。`,
-      })
+      if (err instanceof ConfigReloadError) {
+        return reply.code(500).send({
+          error:
+            err.stage === 'reload'
+              ? `${err.message}。请修正后重新载入。`
+              : `${err.message}。新会话将用新配置,请重试或刷新。`,
+        })
+      }
+      throw err
     }
-    // 遍历所有活跃 session(chat + ingest)换 model,不丢上下文(pi setModel 不清 messages)
-    await applyModelToSessions([...chatSessions.values(), ...ingestSessions], model)
     broadcast({ type: 'config_reloaded' })
     // 广播新 model 信息 + 思考模式状态,前端 header 更新模型名/上下文窗口(model 已 reload,引用为新对象);
     // model 切换后 availableThinkingLevels 可能变(setModel 会 clamp thinkingLevel),带 thinking 让前端更新菜单 + 灰显。
