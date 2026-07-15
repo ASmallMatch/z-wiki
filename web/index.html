@@ -8,13 +8,14 @@
     <script>
       // 主题 FOUC 防护：在 React 挂载前据 localStorage 定 data-theme，避免首屏闪烁。
       // 默认 archive(暗)；localStorage 取到 'draft' 才走浅色。无值/异常都回落 archive。
-      ;(function () {
+      ;(() => {
+        let theme = 'archive'
         try {
-          var t = localStorage.getItem('theme')
-          document.documentElement.setAttribute('data-theme', t === 'draft' ? 'draft' : 'archive')
-        } catch (e) {
-          document.documentElement.setAttribute('data-theme', 'archive')
+          if (localStorage.getItem('theme') === 'draft') theme = 'draft'
+        } catch {
+          /* localStorage 不可用时回落 archive */
         }
+        document.documentElement.setAttribute('data-theme', theme)
       })()
     </script>
   </head>
