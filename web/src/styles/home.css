@@ -42,7 +42,8 @@
 .home {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--nav-h));
+  /* height 而非 min-height:钉死首屏高,flex shrink 才生效,书架 canvas 不反向撑爆溢出(Home.tsx 首页一屏意图)。 */
+  height: calc(100vh - var(--nav-h));
 }
 
 .home-shelf-area {
