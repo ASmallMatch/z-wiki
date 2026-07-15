@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { onKbUpdated } from './chatEvents'
 
 export interface TocItem {
   level: 'h2' | 'h3'
@@ -39,9 +40,7 @@ export function usePages() {
   useEffect(() => {
     load()
     // agent 写完 wiki 后(server 推 kb_updated)自动重拉
-    const handler = () => load()
-    window.addEventListener('kb-updated', handler)
-    return () => window.removeEventListener('kb-updated', handler)
+    return onKbUpdated(load)
   }, [load])
 
   return { pages, loading, error, reload: load }

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { emitIngestState, emitKbUpdated } from './chatEvents'
 
 /** 助手回合内的时间线片段:文本段、工具调用段、思考段按到达顺序排列,保留时序。 */
 export type Segment =
@@ -356,6 +357,32 @@ export function toggleThinkingSegment(
   )
 }
 
+/** vault_changed 重置的目标状态(纯函数,可测)。
+ *  切库时旧库上下文全部作废:消息清空、流式态/累计基准/上下文占用/ingest 角标重置,
+ *  并标记切库重连(短延迟)。返回固定初值;hook 应用完本状态后再 emitKbUpdated,
+ *  确保 usePages 重拉时本组件已清空(不闪旧消息)。 */
+export function vaultChangedReset(): {
+  messages: ChatMessage[]
+  streaming: boolean
+  streamingId: string | null
+  prevTokens: ChatCurrent['prevTokens']
+  turnStats: TurnStats | null
+  contextUsage: SessionStatsPayload['contextUsage']
+  ingest: IngestProgress | null
+  vaultSwitching: boolean
+} {
+  return {
+    messages: [],
+    streaming: false,
+    streamingId: null,
+    prevTokens: null,
+    turnStats: null,
+    contextUsage: null,
+    ingest: null,
+    vaultSwitching: true,
+  }
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [streaming, setStreaming] = useState(false)
@@ -431,14 +458,14 @@ export function useChat() {
       switch (msg.type) {
         case 'kb_updated':
           // 知识库已重建,通知 useData 重拉 pages
-          window.dispatchEvent(new CustomEvent('kb-updated', { detail: msg }))
+          emitKbUpdated()
           break
         case 'ingest_started':
           // ingest 开始:通知设置页禁用切库按钮(D5)
-          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: true } }))
+          emitIngestState({ active: true })
           break
         case 'ingest_done':
-          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: false } }))
+          emitIngestState({ active: false })
           setIngest((prev) => (prev ? { ...prev, phase: 'done', percent: 100 } : prev))
           setMessages((prev) => [
             ...prev,
@@ -446,27 +473,29 @@ export function useChat() {
           ])
           break
         case 'ingest_error':
-          window.dispatchEvent(new CustomEvent('ingest-state', { detail: { active: false } }))
+          emitIngestState({ active: false })
           setIngest((prev) => (prev ? { ...prev, phase: 'failed' } : prev))
           setMessages((prev) => [
             ...prev,
             { id: nextId(), role: 'system', text: `处理 ${msg.raw} 失败:${msg.text}`, error: true },
           ])
           break
-        case 'vault_changed':
-          // 切库显式信号(D7):清空旧库消息(上下文作废),标记切库重连(短延迟),
-          // 通知 useData 重拉 pages。server 随后会 close 本 WS,触发 onclose 重连到新库。
-          vaultSwitchingRef.current = true
-          setMessages([])
-          streamingIdRef.current = null
-          setStreaming(false)
-          // 上下文随切库作废:本轮 token / 累计基准 / 上下文占用 / ingest 角标全部重置
-          setTurnStats(null)
-          setContextUsage(null)
-          setIngest(null)
-          prevTokensRef.current = null
-          window.dispatchEvent(new CustomEvent('kb-updated'))
+        case 'vault_changed': {
+          // 切库显式信号(D7):旧库上下文作废,按 vaultChangedReset 固化的目标值全部重置。
+          // 先应用重置,再 emitKbUpdated 通知 usePages 重拉--顺序保证重拉时本组件已清空,
+          // 不闪旧消息。server 随后会 close 本 WS,触发 onclose 重连到新库(vaultSwitching -> 短延迟)。
+          const reset = vaultChangedReset()
+          vaultSwitchingRef.current = reset.vaultSwitching
+          setMessages(reset.messages)
+          streamingIdRef.current = reset.streamingId
+          setStreaming(reset.streaming)
+          setTurnStats(reset.turnStats)
+          setContextUsage(reset.contextUsage)
+          setIngest(reset.ingest)
+          prevTokensRef.current = reset.prevTokens
+          emitKbUpdated()
           break
+        }
         case 'system':
           // 连接系统消息,忽略
           break
@@ -517,16 +546,15 @@ export function useChat() {
   }, [ingest?.phase])
 
   const send = useCallback(
-    (text: string, displayText?: string) => {
+    (text: string) => {
       const trimmed = text.trim()
       if (!trimmed || !wsRef.current || streaming) return
       // 推入用户消息,并预建一条空 assistant 回合用于流式累加。
-      // displayText 提供时(快捷按钮触发 skill),chat 显示友好提示而非原始 /skill: 命令文本。
       const assistantId = nextId()
       streamingIdRef.current = assistantId
       setMessages((prev) => [
         ...prev,
-        { id: nextId(), role: 'user', text: displayText ?? trimmed },
+        { id: nextId(), role: 'user', text: trimmed },
         { id: assistantId, role: 'assistant', segments: [] },
       ])
       setStreaming(true)

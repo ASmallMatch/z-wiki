@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import Select from './Select'
+import { onIngestState } from '../hooks/chatEvents'
 
 /* ═══════════════════════════════════════════════════
    Settings — 设置页:LLM 配置(api 规范/baseUrl/model/apiKey)+ Vault 切换/新建
@@ -102,14 +103,9 @@ export default function Settings() {
     void load()
   }, [load])
 
-  // 监听 ingest 状态变化(useChat dispatch 的 ingest-state 事件)
+  // 监听 ingest 状态变化(useChat 发的 ingest-state 信号)
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { active: boolean }
-      setIngestActive(detail.active)
-    }
-    window.addEventListener('ingest-state', handler)
-    return () => window.removeEventListener('ingest-state', handler)
+    return onIngestState(({ active }) => setIngestActive(active))
   }, [])
 
   const saveLlm = async () => {

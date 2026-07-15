@@ -21,6 +21,12 @@ import { shouldScrollToBottom } from './chatScroll'
 import { ChatNav } from './chatNav'
 import { CopyButton, getLastTextSegment } from './chatCopy'
 
+/** skill 命令 -> 友好显示文本。user message 渲染时映射(按钮触发与手打统一显示)。
+ *  send 只发原始命令,显示文本是 ChatPanel 的 UI 关注点,不漏进 useChat/send。 */
+const SKILL_DISPLAY: Record<string, string> = {
+  '/skill:health-check': '🔍 健康检查',
+}
+
 /** 格式化 token 数:>1k 显示为 1.2k,否则原值。 */
 function fmtTokens(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
@@ -264,7 +270,7 @@ const MessageBubble = memo(function MessageBubble({
       <div className="chat-row-body">
         <div className="chat-bubble">
           {isUser ? (
-            <TextBlock text={msg.text ?? ''} />
+            <TextBlock text={SKILL_DISPLAY[msg.text ?? ''] ?? msg.text ?? ''} />
           ) : segments.length === 0 && typing ? (
             <span className="chat-typing">
               <span className="chat-typing-dot" />
@@ -523,7 +529,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         <button
           type="button"
           className="chat-quick"
-          onClick={() => send('/skill:health-check', '🔍 健康检查')}
+          onClick={() => send('/skill:health-check')}
           disabled={!connected || streaming}
           title="知识库健康检查"
           aria-label="健康检查"
