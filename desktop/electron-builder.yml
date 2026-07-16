@@ -43,6 +43,11 @@ win:
     - from: resources/bin/win32-${arch}
       to: desktop/resources/bin/win32-${arch}
       filter: ['**/*', '!**/.DS_Store']
+  # z-wiki.bat 启动器放 exe 旁:旧 Windows 双击 bat 带 --disable-gpu --no-sandbox 启动(双击 exe 会崩,
+  # app 内部 appendSwitch 来不及)。extraFiles 加到 win-unpacked 顶层(z-wiki.exe 同级),zip 解压即有。
+  extraFiles:
+    - from: build/z-wiki.bat
+      to: z-wiki.bat
 
 linux:
   icon: build/icon.png

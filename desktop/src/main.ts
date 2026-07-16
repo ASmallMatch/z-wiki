@@ -3,7 +3,6 @@
 // 依赖方向单向(D9):只 import createServer,不深入 server 内部模块。
 import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DIR + PI_OFFLINE(见 env.ts 注释)
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
@@ -19,10 +18,13 @@ import { loadWindowBounds, saveWindowBounds } from './windowState.js'
 // 应用名:覆盖 Electron 默认"Electron"(macOS 应用菜单/Dock 显示名)。打包后由 Info.plist 接管。
 app.setName('z-wiki')
 
-// 旧 Windows(Electron 38 GPU/沙箱兼容差)禁硬件加速 + 沙箱(等价 --disable-gpu --no-sandbox),
-// 否则双击 exe 主进程 C++ 层崩(UserData 都不创建)。仅旧 build 启用:新系统保 GPU/WebGL(3D 书架)。
-// disableHardwareAcceleration 必须 app ready 前调。
-if (needsWindowsGpuSandboxFallback(process.platform, os.release())) {
+// 旧 Windows(Electron 38 GPU/沙箱兼容差)双击 exe 主进程 C++ 层崩。app 内部 appendSwitch 可能
+// 晚于 Chromium/GPU 初始化(来不及,实测 relaunch/spawn 重启带参数均不可靠),故旧 Windows 的可靠
+// 启动走 z-wiki.bat 启动器(双击 bat 调 exe 带 --disable-gpu --no-sandbox,等同手动命令行)。
+// 这里 disableHardwareAcceleration + no-sandbox 是 best-effort 补充(新系统 + 部分旧环境可能够)。
+// 用 process.getSystemVersion() 取真实 OS 版本(RtlGetVersion);Node os.release() 走 GetVersionEx
+// 受兼容性 manifest 影响,打包 app 在 Win10 常误返 6.2/6.3 -> build 解析失败 -> 检测漏触发。
+if (needsWindowsGpuSandboxFallback(process.platform, process.getSystemVersion())) {
   app.disableHardwareAcceleration()
   app.commandLine.appendSwitch('no-sandbox')
 }
