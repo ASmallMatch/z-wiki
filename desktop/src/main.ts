@@ -102,6 +102,9 @@ async function bootstrap(): Promise<void> {
     x: bounds?.x,
     y: bounds?.y,
     icon: iconExists ? iconPath : undefined,
+    // Windows 隐藏窗口内菜单栏(Alt 可呼出);mac 菜单在系统顶部不受此选项影响,保留切片 05 定制菜单。
+    // 编辑操作(复制/粘贴/全选)靠 Ctrl 快捷键 + 右键菜单,功能不丢。
+    autoHideMenuBar: process.platform === 'win32',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
