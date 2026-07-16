@@ -3,12 +3,14 @@
 // 依赖方向单向(D9):只 import createServer,不深入 server 内部模块。
 import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DIR + PI_OFFLINE(见 env.ts 注释)
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { createServer } from '@z-wiki/server'
 import { resolveDesktopPaths } from './paths.js'
+import { needsWindowsGpuSandboxFallback } from './pathUtils.js'
 import { ensureFirstRun } from './firstRun.js'
 import { ensureToolBins } from './toolBins.js'
 import { buildContextMenuTemplate } from './contextMenu.js'
@@ -16,6 +18,14 @@ import { loadWindowBounds, saveWindowBounds } from './windowState.js'
 
 // 应用名:覆盖 Electron 默认"Electron"(macOS 应用菜单/Dock 显示名)。打包后由 Info.plist 接管。
 app.setName('z-wiki')
+
+// 旧 Windows(Electron 38 GPU/沙箱兼容差)禁硬件加速 + 沙箱(等价 --disable-gpu --no-sandbox),
+// 否则双击 exe 主进程 C++ 层崩(UserData 都不创建)。仅旧 build 启用:新系统保 GPU/WebGL(3D 书架)。
+// disableHardwareAcceleration 必须 app ready 前调。
+if (needsWindowsGpuSandboxFallback(process.platform, os.release())) {
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('no-sandbox')
+}
 
 // preload.js 与 main.js 同在 dist/(tsc 编译 ESM,__dirname 用 import.meta.url 推导)。
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

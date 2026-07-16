@@ -7,6 +7,17 @@ export function platformArch(): string {
   return `${process.platform}-${process.arch}`
 }
 
+/**
+ * 旧 Windows(Electron 38 GPU/沙箱兼容差,双击 exe C++ 层崩)是否需禁硬件加速 + 沙箱。
+ * build < 19041(Windows 10 2004 以下)返回 true。os.release() 在 win 返回内核版本如
+ * "10.0.17763",第 3 段 = build 号。纯函数,可单测;main.ts 据此调 app API。
+ */
+export function needsWindowsGpuSandboxFallback(platform: string, osRelease: string): boolean {
+  if (platform !== 'win32') return false
+  const build = Number(osRelease.split('.')[2] ?? 0)
+  return build > 0 && build < 19041
+}
+
 /** UserDataDir 下首个 Vault 的 kb/ 路径(首版单 Vault 放 UserDataDir 下)。 */
 export function kbRootFor(userDataDir: string): string {
   return path.join(userDataDir, 'kb')
