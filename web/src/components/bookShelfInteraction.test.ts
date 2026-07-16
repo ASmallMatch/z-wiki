@@ -3,13 +3,12 @@ import assert from 'node:assert/strict'
 import {
   snapTarget,
   clampRot,
-  soloElasticRot,
   velocityFromSamples,
   flyToTarget,
   orbitAlignTarget,
   isClickMove,
-  SOLO_DRAG_CLAMP,
-  SOLO_MAX_ROT,
+  computeShelfSlots,
+  computeRealSlots,
   CLICK_MOVE_PX,
 } from './bookShelfInteraction.js'
 
@@ -17,67 +16,38 @@ import {
 const HALF = 8
 const SLOTS = 17
 const EFF_STEP = 0.05
-const TAU = Math.PI * 2
 
 // ---------- snapTarget ----------
 
-test('snapTarget 单本书（slots<=1）拖多圈 -> snap 到最近 2π 整数倍、位移最小', () => {
-  // rotVal = 3*TAU + 0.1，应 snap 到 3*TAU（最近的 2π 整数倍），不转回 0
-  const target = snapTarget(3 * TAU + 0.1, EFF_STEP, HALF, 1, false)
-  assert.equal(target, 3 * TAU)
-})
-
 test('snapTarget 多本无 virtual、rot 累积飞出窗口 -> 收敛回 [-half,half]（7ea7aa6 根因）', () => {
   // rotVal=-0.5 -> targetSlot=round(0.5/0.05)=10，超 half=8；无 virtual 应夹到 slot=8
-  const target = snapTarget(-0.5, EFF_STEP, HALF, SLOTS, false)
+  const target = snapTarget(-0.5, EFF_STEP, HALF, false)
   const slot = -target / EFF_STEP
   assert.ok(slot >= -HALF, `slot=${slot} 应 >= -half=${-HALF}`)
   assert.ok(slot <= HALF, `slot=${slot} 应 <= half=${HALF}`)
 })
 
 test('snapTarget 多本 virtual -> 不收敛，靠 reflow 收敛 pos', () => {
-  const target = snapTarget(-0.5, EFF_STEP, HALF, SLOTS, true)
+  const target = snapTarget(-0.5, EFF_STEP, HALF, true)
   assert.equal(-target / EFF_STEP, 10) // 不夹，原样 round(10)
 })
 
 test('snapTarget 两槽正中 -> round 半数向 +Inf（JS Math.round 行为）', () => {
   // rotVal=-0.025 -> -rotVal/effStep=0.5 -> Math.round(0.5)=1
-  const target = snapTarget(-0.025, EFF_STEP, HALF, SLOTS, true)
+  const target = snapTarget(-0.025, EFF_STEP, HALF, true)
   assert.equal(-target / EFF_STEP, 1)
 })
 
-// ---------- soloElasticRot ----------
-
-test('soloElasticRot |raw|<=clamp 段 -> 1:1 跟手（原值）', () => {
-  assert.equal(soloElasticRot(0, 0.05), 0)
-  assert.equal(soloElasticRot(SOLO_DRAG_CLAMP, 0.05), SOLO_DRAG_CLAMP)
-  assert.equal(soloElasticRot(-SOLO_DRAG_CLAMP, 0.05), -SOLO_DRAG_CLAMP)
-})
-
-test('soloElasticRot 适度超出 clamp -> 渐近趋向 +limit、未到顶', () => {
-  const soloMaxRot = 0.05
-  const limit = Math.min(soloMaxRot, SOLO_MAX_ROT)
-  const r = soloElasticRot(SOLO_DRAG_CLAMP + 0.01, soloMaxRot)
-  assert.ok(r > SOLO_DRAG_CLAMP, '超出 clamp 应 > clamp')
-  assert.ok(r < limit, '适度超出应 < limit（渐近未到顶）')
-})
-
-test('soloElasticRot 极大输入 -> 不超 limit（浮点极限可等，不撞墙）', () => {
-  const soloMaxRot = 0.05
-  const limit = Math.min(soloMaxRot, SOLO_MAX_ROT)
-  const r = soloElasticRot(SOLO_DRAG_CLAMP + 10, soloMaxRot)
-  assert.ok(r <= limit, `r=${r} 应 <= limit=${limit}（不撞墙）`)
-})
-
-test('soloElasticRot ±raw 输出对称', () => {
-  const soloMaxRot = 0.05
-  const r = soloElasticRot(SOLO_DRAG_CLAMP + 0.02, soloMaxRot)
-  const rNeg = soloElasticRot(-(SOLO_DRAG_CLAMP + 0.02), soloMaxRot)
-  assert.ok(Math.abs(r + rNeg) < 1e-12, `r=${r} 与 rNeg=${rNeg} 应互为相反数`)
+test('snapTarget N=2 realSlots=[0,1] -> 不吸虚拟 -1（吸 slot0）', () => {
+  // realMin=0, realMax=1, half=1。rotVal=0.05 -> targetSlot=round(-1)=-1 -> clamp(-1,0,1)=0 -> 0
+  assert.equal(snapTarget(0.05, EFF_STEP, 1, false, 0, 1), 0)
+  // rotVal=0.025 -> targetSlot=round(-0.5)=0（JS 向 +Inf）-> 0
+  assert.equal(snapTarget(0.025, EFF_STEP, 1, false, 0, 1), 0)
+  // rotVal=-0.05 -> targetSlot=1 -> clamp(1,0,1)=1 -> -0.05（吸 slot1）
+  assert.equal(snapTarget(-0.05, EFF_STEP, 1, false, 0, 1), -0.05)
 })
 
 // ---------- clampRot ----------
-// 仅 N=3 残留（half=1）：rot 硬夹到 ±half*effStep，防飞出视口（5ed27f1：去 soloMaxRot 死约束）。
 
 test('clampRot 窗口内 -> 原值', () => {
   // limit = half*effStep = 8*0.05 = 0.4
@@ -93,6 +63,16 @@ test('clampRot 超出 -> 夹到 ±limit（limit=half*effStep）', () => {
 test('clampRot 边界值 ±limit -> 原值（不夹）', () => {
   assert.equal(clampRot(0.4, EFF_STEP, HALF), 0.4)
   assert.equal(clampRot(-0.4, EFF_STEP, HALF), -0.4)
+})
+
+test('clampRot N=2 realSlots=[0,1] -> 非对称夹，防落虚拟 -1', () => {
+  // realMin=0, realMax=1, half=1, effStep=0.05
+  // winLimit=0.05; lo=max(-0.05, -(1.5)*0.05=-0.075)=-0.05; hi=min(0.05, -(-0.5)*0.05=0.025)=0.025
+  // 正向（向虚拟 -1）夹到 hi=0.025；负向（向真1）夹到 lo=-0.05
+  assert.equal(clampRot(0.05, EFF_STEP, 1, 0, 1), 0.025)
+  assert.equal(clampRot(-0.05, EFF_STEP, 1, 0, 1), -0.05)
+  assert.equal(clampRot(1, EFF_STEP, 1, 0, 1), 0.025)
+  assert.equal(clampRot(-1, EFF_STEP, 1, 0, 1), -0.05)
 })
 
 // ---------- velocityFromSamples ----------
@@ -136,14 +116,16 @@ test('flyToTarget duration 按距离缩放、远距封顶 0.8', () => {
 
 // ---------- orbitAlignTarget ----------
 
-test('orbitAlignTarget 单本书 -> 对齐 2π 整数倍', () => {
-  // rotVal=2*TAU+0.1 -> 对齐到 2*TAU
-  assert.equal(orbitAlignTarget(2 * TAU + 0.1, EFF_STEP, 1), 2 * TAU)
+test('orbitAlignTarget 多本 -> 对齐最近真书槽', () => {
+  // rotVal=-0.12 -> round(0.12/0.05)=round(2.4)=2 -> clamp(2,-8,8)=2 -> -2*0.05=-0.1
+  assert.equal(orbitAlignTarget(-0.12, EFF_STEP, -HALF, HALF), -0.1)
 })
 
-test('orbitAlignTarget 多本书 -> 对齐最近槽', () => {
-  // rotVal=-0.12 -> -Math.round(0.12/0.05)*0.05 = -Math.round(2.4)*0.05 = -0.1
-  assert.equal(orbitAlignTarget(-0.12, EFF_STEP, SLOTS), -0.1)
+test('orbitAlignTarget N=2 -> 不对齐虚拟 -1（对齐 slot0）', () => {
+  // rotVal=0.05 -> round(-1)=-1 -> clamp(-1,0,1)=0 -> 0
+  assert.equal(orbitAlignTarget(0.05, EFF_STEP, 0, 1), 0)
+  // rotVal=-0.05 -> round(1)=1 -> clamp(1,0,1)=1 -> -0.05
+  assert.equal(orbitAlignTarget(-0.05, EFF_STEP, 0, 1), -0.05)
 })
 
 // ---------- isClickMove ----------
@@ -159,4 +141,68 @@ test('isClickMove |dx|>阈值 -> false（拖拽）', () => {
 test('isClickMove |dx|=阈值 -> true（<=算点击）', () => {
   assert.equal(isClickMove(100, 100 + CLICK_MOVE_PX), true)
   assert.equal(isClickMove(100, 100 - CLICK_MOVE_PX), true)
+})
+
+// ---------- computeShelfSlots ----------
+
+test('computeShelfSlots N=1 -> 补虚拟位到 3（slots=3, half=1, virtual=false）', () => {
+  const r = computeShelfSlots(1, SLOTS)
+  assert.equal(r.slots, 3)
+  assert.equal(r.half, 1)
+  assert.equal(r.virtual, false)
+})
+
+test('computeShelfSlots N=2 -> 补虚拟位到 3（slots=3, half=1, virtual=false）', () => {
+  const r = computeShelfSlots(2, SLOTS)
+  assert.equal(r.slots, 3)
+  assert.equal(r.half, 1)
+  assert.equal(r.virtual, false)
+})
+
+test('computeShelfSlots N=3 -> 满窗 3 槽（virtual=false）', () => {
+  const r = computeShelfSlots(3, SLOTS)
+  assert.equal(r.slots, 3)
+  assert.equal(r.half, 1)
+  assert.equal(r.virtual, false)
+})
+
+test('computeShelfSlots N=4 -> slots=3 + virtual（reflow 换皮遍 4 本）', () => {
+  const r = computeShelfSlots(4, SLOTS)
+  assert.equal(r.slots, 3)
+  assert.equal(r.virtual, true)
+})
+
+test('computeShelfSlots N>SLOT_COUNT -> 封顶 17 + virtual', () => {
+  const r = computeShelfSlots(18, SLOTS)
+  assert.equal(r.slots, 17)
+  assert.equal(r.virtual, true)
+})
+
+// ---------- computeRealSlots ----------
+
+test('computeRealSlots N=1 slots=3 -> [0]（±1 皆虚拟，1 本无法只左空）', () => {
+  assert.deepEqual(computeRealSlots(3, 1), [0])
+})
+
+test('computeRealSlots N=2 slots=3 -> [0,1]（左边缘 -1 虚拟）', () => {
+  assert.deepEqual(computeRealSlots(3, 2), [0, 1])
+})
+
+test('computeRealSlots N=3 slots=3 -> [-1,0,1]（满窗无虚拟）', () => {
+  assert.deepEqual(computeRealSlots(3, 3), [-1, 0, 1])
+})
+
+test('computeRealSlots N=4 slots=3 -> [-1,0,1]（virtual reflow，窗口内无虚拟）', () => {
+  assert.deepEqual(computeRealSlots(3, 4), [-1, 0, 1])
+})
+
+test('computeRealSlots N=6 slots=5 -> [-2,-1,0,1,2]', () => {
+  assert.deepEqual(computeRealSlots(5, 6), [-2, -1, 0, 1, 2])
+})
+
+test('computeRealSlots N=17 slots=17 -> [-8..8] 全真（17 项）', () => {
+  const r = computeRealSlots(17, 17)
+  assert.equal(r.length, 17)
+  assert.equal(r[0], -8)
+  assert.equal(r[16], 8)
 })

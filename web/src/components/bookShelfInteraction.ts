@@ -1,50 +1,76 @@
 // BookShelf3D 交互状态机的纯决策函数（参照 bookShelfReflow.ts 模式）。
-// 从主 useEffect 闭包抽出的纯逻辑：snap/clamp/橡皮筋/速度采样/fly/orbit 对齐/click 阈值。
+// 从主 useEffect 闭包抽出的纯逻辑：snap/clamp/速度采样/fly/orbit 对齐/click 阈值。
 // 只算"目标值"，rot 对象/snapping 布尔/gsap 调用留 useEffect--纯函数不知道 gsap 存在。
 
-const TAU = Math.PI * 2 // 单本书回弹对齐用：吸到 2π 整数倍视觉等同正中
-export const SOLO_DRAG_CLAMP = 0.025 // 单本书拖拽 rot 1:1 跟手范围（弧度）：在此范围内跟手，超出走橡皮筋渐近线
-export const SOLO_MAX_ROT = 0.05 // 单本书橡皮筋渐近上限（弧度，约 2.8°）：轻微挪动，取 min(soloMaxRot) 防窄屏出屏
 export const CLICK_MOVE_PX = 6 // 位移阈值：小于此判定为点击而非拖拽
 
-// 吸附 rot 到最近槽位（中心对齐到一本）。单本书（slots<=1）无滑轨，对齐到最近 2π 整数倍
-// （视觉等同正中且位移最小，拖多圈也不转一整圈回来）。多本书走槽位对齐；无 virtual 时
-// 收敛到窗口 [-half, half] 防 rot 累积飞出后松手不回（7ea7aa6 根因）。
+// 槽位规划（从 BookShelf3D 主 useEffect 抽出的纯决策）：slot0 钉中心。
+// N≥4 时 slots≤N-1 留换皮空间走 reflow（virtual=true，自由拖滚遍）；
+// N=3 满窗 slots=N 走 clampRot。奇数化保 slot0。
+// D1（ADR-0015）：slots 下限 3--N=1,2 补虚拟位到 3（最小窗口），N≥3 零变化。
+export function computeShelfSlots(
+  n: number,
+  slotCount: number,
+): { slots: number; half: number; virtual: boolean } {
+  let slots = Math.max(3, Math.min(n, slotCount, Math.max(n - 1, 3)))
+  if (slots % 2 === 0) slots -= 1
+  const half = (slots - 1) / 2
+  const virtual = n > slots
+  return { slots, half, virtual }
+}
+
+// 真书槽集（ADR-0015 D2/D3）：slots 个槽位中去掉虚拟位后的真实 slotIndex 集合（升序）。
+// 虚拟位 = dataIndex(slotIndex mod n) 重复的槽--补虚拟凑奇时 N<slots 导致 mod 重复。
+// 占位顺序 slot0 -> +1..+half -> -1..-half：正侧优先，-half（左边缘）作为重复位被跳过。
+export function computeRealSlots(slots: number, n: number): number[] {
+  const half = (slots - 1) / 2
+  const seen = new Set<number>()
+  const order: number[] = [0]
+  for (let i = 1; i <= half; i++) order.push(i)
+  for (let i = 1; i <= half; i++) order.push(-i)
+  const real: number[] = []
+  for (const si of order) {
+    const di = ((si % n) + n) % n
+    if (!seen.has(di)) {
+      seen.add(di)
+      real.push(si)
+    }
+  }
+  return real.sort((a, b) => a - b)
+}
+
+// 吸附 rot 到最近真书槽（中心对齐到一本）。virtual 时不收敛（靠 reflow 收敛 pos）；
+// 非 virtual 收敛到 realSlots [realMin, realMax] 防 rot 累积飞出后松手不回（7ea7aa6 根因）。
+// D3/D4（ADR-0015）：clamp 到 realSlots 而非 [-half, half]--N=1,2 时虚拟位 -half 不在 realSlots，
+// 吸附永不着陆虚拟。N≥3 realSlots=[-half, half]，与原行为一致。
 export function snapTarget(
   rotVal: number,
   effStep: number,
   half: number,
-  slots: number,
   virtual: boolean,
+  realMin: number = -half,
+  realMax: number = half,
 ): number {
-  if (slots <= 1) {
-    return Math.round(rotVal / TAU) * TAU
-  }
   const targetSlot = Math.round(-rotVal / effStep)
-  const slot = virtual ? targetSlot : Math.max(-half, Math.min(half, targetSlot))
-  return -slot * effStep
+  const slot = virtual ? targetSlot : Math.max(realMin, Math.min(realMax, targetSlot))
+  return slot === 0 ? 0 : -slot * effStep
 }
 
-// 仅 N=3 残留（half=1、virtual=false）：rot 硬夹到 ±half*effStep（墙=最远槽位，松手 snap 对齐），
-// 防 x=sin(a)*RADIUS 飞出视口。N≥4 走 reflow 不经此函数；单本书(slots<=1)橡皮筋语义不同不复用。
-// limit 曾误取 min(half*effStep, soloMaxRot)，但 half=1 时 soloMaxRot 恒为死约束，已移除(5ed27f1)。
-export function clampRot(val: number, effStep: number, half: number): number {
-  const limit = half * effStep
-  return Math.max(-limit, Math.min(limit, val))
-}
-
-// 单本书橡皮筋渐近线：±SOLO_DRAG_CLAMP 内 1:1 跟手，超出部分渐近趋向 ±limit
-// （limit=min(soloMaxRot, SOLO_MAX_ROT)），越拖越阻尼、永不到顶不撞墙，松手弹回正中。
-export function soloElasticRot(raw: number, soloMaxRot: number): number {
-  const limit = Math.min(soloMaxRot, SOLO_MAX_ROT)
-  const span = limit - SOLO_DRAG_CLAMP
-  if (raw > SOLO_DRAG_CLAMP) {
-    return SOLO_DRAG_CLAMP + span * (1 - Math.exp(-(raw - SOLO_DRAG_CLAMP) / span))
-  }
-  if (raw < -SOLO_DRAG_CLAMP) {
-    return -SOLO_DRAG_CLAMP - span * (1 - Math.exp((raw + SOLO_DRAG_CLAMP) / span))
-  }
-  return raw
+// rot 硬夹到真书槽区间（墙=最远真书槽的半槽边界，松手 snap 对齐），防 x=sin(a)*RADIUS 飞出视口
+// 且防 currentSlot 落虚拟位。D4（ADR-0015）：取「防飞视口 ±half*effStep」与「防落虚拟 realSlots
+// 区间」的紧交集。N≥3 realMin=-half/realMax=half -> realSlots 区间 ±(half+0.5)*effStep（松于 ±half）
+// 退化为原 ±half*effStep；N=1,2 realSlots 子集 -> 非对称夹（虚拟方向挡）。
+export function clampRot(
+  val: number,
+  effStep: number,
+  half: number,
+  realMin: number = -half,
+  realMax: number = half,
+): number {
+  const winLimit = half * effStep
+  const lo = Math.max(-winLimit, -(realMax + 0.5) * effStep)
+  const hi = Math.min(winLimit, -(realMin - 0.5) * effStep)
+  return Math.max(lo, Math.min(hi, val))
 }
 
 // 松手前近 100ms 速度采样算惯性初速（弧度/秒）。span 下限 16ms，防 up 与最后一次 move
@@ -73,12 +99,16 @@ export function flyToTarget(
   return { target, duration }
 }
 
-// 进入轨道球：对齐 rot 到最近槽（稳定 currentSlot）。单本书对齐到 2π 整数倍，多本书对齐槽位。
-export function orbitAlignTarget(rotVal: number, effStep: number, slots: number): number {
-  if (slots <= 1) {
-    return Math.round(rotVal / TAU) * TAU
-  }
-  return -Math.round(-rotVal / effStep) * effStep
+// 进入轨道球：对齐 rot 到最近真书槽（稳定 currentSlot）。
+// D4（ADR-0015）：clamp 到 realSlots [realMin, realMax]，不落虚拟。
+export function orbitAlignTarget(
+  rotVal: number,
+  effStep: number,
+  realMin: number,
+  realMax: number,
+): number {
+  const slot = Math.max(realMin, Math.min(realMax, Math.round(-rotVal / effStep)))
+  return slot === 0 ? 0 : -slot * effStep
 }
 
 // 位移是否在点击阈值内（<=CLICK_MOVE_PX）：true 表示应视为点击、不触发拖拽。

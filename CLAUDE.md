@@ -21,6 +21,7 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 - `docs/adr/0012-thinking-mode-and-zh-constraint.md` —— 思考模式 quickbar 下拉切换 + 中文约束(段A 输出语言静态注入 / 段B 思考语言动态注入);config 加 `thinkingLevel`。
 - `docs/adr/0013-draft-archivist-room-repalette.md` —— Draft 主题改「档案室」配色(泛黄纸 + 蓝黑墨水);supersedes ADR-0006 D1'/D3'。
 - `docs/adr/0014-css-regional-split.md` —— web CSS 按区域拆分(删 `global.css` 3682 行 -> 7 文件),纯 locality 重组。
+- `docs/adr/0015-book-shelf-phantom-slot.md` -- N=1,2 补虚拟位凑奇数 slots(N≥3 不变),保留 slot0 体系 + currentSlot 量化真书槽集;删单本路径。
 
 三层物理边界不动:`kb/`(layer1 数据)/ `web/`(layer2 SPA)/ `server/`(layer3 Fastify+pi agent)各自独立,不互写文件系统。桌面化是在三层之外加 `desktop/` shell,不穿透。
 
