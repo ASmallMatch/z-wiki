@@ -2,6 +2,17 @@
 
 基于 LLM agent 的个人知识库编译器。上传文档自动编译为 markdown 知识库,agent 可读 / 写 / 编辑 / 搜索 / 转换;数据在本机,server 走 loopback,本地优先。
 
+![z-wiki 首页](docs/img/z-wiki-home.png)
+
+## 功能
+
+- **上传自动编译**:拖拽 / 上传 docx、xlsx、pptx、odt、epub、html、csv 等文档,内置 pandoc 转 markdown,agent 自动编译进知识库(原文归档 raw/)。
+- **3D 书架首页**:可视化浏览知识库,点书翻阅。
+- **文章阅读**:markdown 渲染、wiki 链接跳转、agent 思维链折叠展示。
+- **agent 对话**:读 / 写 / 编辑 / 搜索知识库;可选思考模式(思考过程可折叠)。
+- **多 Vault 管理**:切换 / 新建 / 删除知识库,知识库可放自定义位置(如 D 盘),一次开一个。
+- **本地优先**:数据在本机,Electron 内嵌 Fastify server 走 loopback,不联网下载工具(pandoc / rg / fd 预打进)。
+
 ## 安装
 
 从 release 拿对应平台的包:
