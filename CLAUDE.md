@@ -12,9 +12,15 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 - `docs/adr/0003-desktop-form.md` —— 桌面化决策(Electron + 不破坏三层)。
 - `docs/adr/0004-llm-config.md` —— LLM 配置:干掉 provider 预设,`baseUrl`/`api`/`model`/`apiKey` 可配。
 - `docs/adr/0005-theme-system.md` —— 主题系统(明暗 + 陶土浅色)。
-- `docs/adr/0006-draft-clay-accent-and-shelf-theming.md` —— Draft 陶土橙 accent + 书架随主题浅化。
-- `docs/adr/0007-non-md-bash-pandoc.md` —— 非 md 上传走 bash+pandoc(agent 侧按需转,bash 白名单限 pandoc)。
+- `docs/adr/0006-draft-clay-accent-and-shelf-theming.md` —— Draft 主题换皮机制(D1'陶土橙/D3'牛皮纸已被 ADR-0013 取代,留 D2'换皮)。
+- `docs/adr/0007-non-md-bash-pandoc.md` —— 非 md 原样落 raw/,agent 侧按需转;决策 2(bash 白名单)已被 ADR-0011 取代,决策 3(pandoc 二进制内置)仍有效。
 - `docs/adr/0008-platform-branches-keep-inline.md` —— 平台分支就地判断,不抽平台分发表/统一 adapter。
+- `docs/adr/0009-quick-action-skill-customtool.md` —— 快捷按钮 = `send('/skill:<name>')` 触发 pi skill,skill 正文指导 agent 调配套 customTool(健康检查为首例,`health_check` 工具)。
+- `docs/adr/0010-remove-wiki-view-filter.md` —— 移除 wiki view 过滤,书本全显(导航页 `00-知识库导航` hardcode 排除)。
+- `docs/adr/0011-pandoc-customtool-remove-bash.md` —— pandoc 走 customTool(`makePandocTool`,spawn argv 不经 shell),bash 工具 + `bashWhitelist` 移除;supersedes ADR-0007 决策 2。
+- `docs/adr/0012-thinking-mode-and-zh-constraint.md` —— 思考模式 quickbar 下拉切换 + 中文约束(段A 输出语言静态注入 / 段B 思考语言动态注入);config 加 `thinkingLevel`。
+- `docs/adr/0013-draft-archivist-room-repalette.md` —— Draft 主题改「档案室」配色(泛黄纸 + 蓝黑墨水);supersedes ADR-0006 D1'/D3'。
+- `docs/adr/0014-css-regional-split.md` —— web CSS 按区域拆分(删 `global.css` 3682 行 -> 7 文件),纯 locality 重组。
 
 三层物理边界不动:`kb/`(layer1 数据)/ `web/`(layer2 SPA)/ `server/`(layer3 Fastify+pi agent)各自独立,不互写文件系统。桌面化是在三层之外加 `desktop/` shell,不穿透。
 
@@ -24,9 +30,10 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 make run          # 构建并启动主工作区的 desktop(Electron)
 make run-w        # 复用主工作区依赖,启动 worktree 的 desktop
 make typecheck    # 全量类型检查(server + web + scripts + desktop 四个 tsconfig)
-npm test          # 跑 server + desktop 的 *.test.ts(tsx --test)
+npm test          # 跑 server + desktop + web 的 *.test.ts(tsx --test)
 make lint         # Biome lint(不修改)
 make format       # Biome 格式化(写入)
+make package      # 打包 desktop(electron-builder,默认当前平台;TARGETS="--mac --win --linux" 三平台交叉打包)
 make build        # 构建前端 + 后端产物
 ```
 
@@ -37,9 +44,9 @@ make build        # 构建前端 + 后端产物
 - **`kb/` gitignored,由 agent 维护**。起步用 `cp -r kb_example kb`。server 启动检查 `kb/` 存在,缺失即报错。不要把 `kb/` 内容提交。
 - **agent 的 cwd = `kb/`**。prompt 与工具调用里的路径都相对 `kb/`(如 `read wiki/01-x.md`)。改 `agentHost.ts` 的 cwd 会破坏 prompt 路径语义。
 - **buildView 是纯函数**:只读 fs 返回 `{pages, fragments}`,**不写盘**。可视数据由 Interaction 内存缓存经 `/api/pages` 暴露。不要再加写盘逻辑。
-- **`config.json` 是单一真相源**(ADR-0003 D3.1 + ADR-0004):含 `apiKey`/`baseUrl`/`api`/`model`/`contextWindow`/`vaults`/`currentVault`/`shellPath`(无 `provider`,已删)。dev 形态放项目根(从 `config.example.json` 复制起步),桌面形态放 UserDataDir。`buildAgentContext` 从 appRoot(= agentDir 上两级)读它,启动生成 `.pi/agent/models.json`(派生产物),apiKey 经 `setRuntimeApiKey` 运行时注入——**`auth.json` 不落盘**。不再读 `.env`。
-- **`raw/` 只读是双层防御**:prompt 引导(第一道)+ `kbHooks` 的 tool_call 拦截(兜底):write/edit 拦 raw 写,bash 走白名单(只放行 `pandoc`、禁元字符,ADR-0007)。
-- **pi agent 工具集含 bash**(ADR-0003 D6 基线 + ADR-0007 扩展):`tools: ["read","edit","write","grep","find","ls","bash"]`。bash 经 `bashWhitelist.ts` 限定为单条 `pandoc`(禁元字符),用于非 md 源按需转文本;agent 不是通用 shell。
+- **`config.json` 是单一真相源**(ADR-0003 D3.1 + ADR-0004):含 `apiKey`/`baseUrl`/`api`/`model`/`contextWindow`/`vaults`/`currentVault`/`shellPath`/`thinkingLevel`(无 `provider`,已删)。dev 形态放项目根(从 `config.example.json` 复制起步),桌面形态放 UserDataDir。`buildAgentContext` 从 appRoot(= agentDir 上两级)读它,启动生成 `.pi/agent/models.json`(派生产物),apiKey 经 `setRuntimeApiKey` 运行时注入——**`auth.json` 不落盘**。不再读 `.env`。
+- **`raw/` 只读是双层防御**:prompt 引导(第一道)+ `kbHooks` 的 tool_call 拦截(兜底):write/edit 拦 raw 写,read 拦非 md(提示用 pandoc 工具,ADR-0011)。
+- **pi agent 工具集不含 bash**(ADR-0003 D6 基线,ADR-0011 移除 bash):`tools: ["read","edit","write","grep","find","ls","pandoc"]`。非 md 源经 `pandoc` customTool(`makePandocTool`,spawn argv 不经 shell,无注入面)按需转文本;agent 不是通用 shell。
 
 ## 代码风格
 
