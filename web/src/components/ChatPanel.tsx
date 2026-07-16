@@ -20,6 +20,7 @@ import {
 import { shouldScrollToBottom } from './chatScroll'
 import { ChatNav } from './chatNav'
 import { CopyButton, getLastTextSegment } from './chatCopy'
+import { useFileDrop } from '../hooks/useFileDrop'
 
 /** skill 命令 -> 友好显示文本。user message 渲染时映射(按钮触发与手打统一显示)。
  *  send 只发原始命令,显示文本是 ChatPanel 的 UI 关注点,不漏进 useChat/send。 */
@@ -413,6 +414,10 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
     if (f) void upload(f)
     e.target.value = ''
   }
+
+  // 窗口级拖拽上传(ChatPanel 常驻挂载,故全局生效):拖文件到窗口 -> 走 upload(POST /api/upload)。
+  // upload 是 useCallback([]) 稳定引用,effect 只注册一次;返回 Promise<void> 赋给 (file)=>void 合法。
+  useFileDrop(upload)
 
   // 上次消息数与流式状态:区分"该滚"(新消息/流式/流结束)与"不该滚"(toggle 胶囊)。
   const prevMsgLenRef = useRef(messages.length)

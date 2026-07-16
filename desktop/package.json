@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "main": "dist/main.js",
+  "description": "基于 LLM agent 的个人知识库编译器(桌面形态)",
+  "author": "Earendil Works",
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs",
     "start": "npm run build && electron ."
@@ -14,7 +16,8 @@
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^22.10.0",
-    "electron": "^38.0.0",
+    "electron": "38.8.6",
+    "electron-builder": "^26.15.3",
     "typescript": "~5.7.0"
   }
 }

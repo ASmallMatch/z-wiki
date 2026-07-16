@@ -469,8 +469,9 @@ export default function Settings() {
         <section className="settings-section">
           <h2 className="settings-section-title">Git Bash 路径(可选)</h2>
           <p className="settings-hint">
-            Windows 找 Git Bash(Program Files\Git\bin\bash.exe → PATH),mac/linux 走 /bin/bash → PATH
-            → sh。想指定其他 bash 可执行文件时填完整路径覆盖
+            默认工具集不含 bash(读/写/编辑/搜索 + pandoc 转换已覆盖全部需求),Windows 用户无需 Git
+            Bash 即可使用核心功能,不填不阻断。此字段为可选覆盖口子:留空走自动探测(win: Program
+            Files\Git\bin\bash.exe → PATH;mac/linux: /bin/bash → PATH → sh),填完整路径则覆盖。
           </p>
           <div className="settings-field">
             <label className="settings-label" htmlFor="shell-path">

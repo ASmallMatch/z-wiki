@@ -17,3 +17,7 @@ const userDataDir = app.getPath('userData')
 process.env.PI_CODING_AGENT_DIR = agentDirFor(userDataDir)
 // 禁用 pi 下载分支(ADR-0003 D8):国内 GitHub releases 不可达时不卡 10s 超时,必走预打进二进制。
 process.env.PI_OFFLINE = '1'
+// 打包形态按生产跑:server 的 isDev(NODE_ENV!=='production')据此关 pino-pretty transport
+// (pino-pretty 是 server devDep,不打进 bundle,打包后加载会 "unable to determine transport target")。
+// dev 形态(npm run desktop,未打包)保留 NODE_ENV 未设 -> pino-pretty 可用。
+if (app.isPackaged) process.env.NODE_ENV = 'production'

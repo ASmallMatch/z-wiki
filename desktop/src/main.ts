@@ -11,6 +11,7 @@ import { createServer } from '@z-wiki/server'
 import { resolveDesktopPaths } from './paths.js'
 import { ensureFirstRun } from './firstRun.js'
 import { ensureToolBins } from './toolBins.js'
+import { buildContextMenuTemplate } from './contextMenu.js'
 import { loadWindowBounds, saveWindowBounds } from './windowState.js'
 
 // 应用名:覆盖 Electron 默认"Electron"(macOS 应用菜单/Dock 显示名)。打包后由 Info.plist 接管。
@@ -105,6 +106,22 @@ async function bootstrap(): Promise<void> {
   // 诊断:preload 加载/执行失败时 Electron 不打主进程日志,显式监听抓错误。
   mainWindow.webContents.on('preload-error', (_e, p, error) => {
     console.error('[preload-error]', p, error?.message ?? error)
+  })
+
+  // 右键菜单(切片 06:桌面风格,替代浏览器默认)。role 项自动启用/禁用 + 快捷键;
+  // back/forward 按 navigationHistory 启用(SPA 用 history 路由,webContents.goBack 受 react-router 尊重)。
+  mainWindow.webContents.on('context-menu', (_event, _params) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const history = mainWindow.webContents.navigationHistory
+    const menu = Menu.buildFromTemplate(
+      buildContextMenuTemplate({
+        canGoBack: history.canGoBack(),
+        canGoForward: history.canGoForward(),
+        onBack: () => mainWindow?.webContents.goBack(),
+        onForward: () => mainWindow?.webContents.goForward(),
+      }),
+    )
+    menu.popup({ window: mainWindow })
   })
 
   await mainWindow.loadURL(`http://127.0.0.1:${port}/`)

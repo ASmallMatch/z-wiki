@@ -9,6 +9,7 @@
       "**",
       "!**/node_modules",
       "!**/dist",
+      "!**/release",
       "!**/kb",
       "!**/kb_example",
       "!**/vault",

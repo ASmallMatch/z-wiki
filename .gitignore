@@ -19,6 +19,8 @@ server/dist/
 desktop/resources/bin/
 # desktop/build/ 图标产物(render-icon.mjs 从 icon.svg 渲染生成);icon.svg 是矢量源需保留
 desktop/build/*.png
+# electron-builder 打包产物(切片 06,ADR-0003 D1),只提交配置不提交产物
+/release
 /server/.DS_Store
 /vault/test-kb
 .firecrawl

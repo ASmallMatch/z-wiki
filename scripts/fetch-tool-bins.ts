@@ -117,11 +117,17 @@ async function download(url: string, dest: string): Promise<void> {
   await pipeline(Readable.fromWeb(res.body as never), createWriteStream(dest))
 }
 
-function extractArchive(archive: string, dest: string, plat: string): void {
+// 按压缩包扩展名选解压工具(宿主适配,非目标平台):切片 06 跨平台打包需在 mac 宿主上
+// 解 win/linux 的 .zip/.tar.gz。原实现按目标 plat 选 powershell/tar,mac 上解 win zip 失败。
+// mac bsdtar 的 `tar -xf` 自动识别格式(tar.gz + zip 均可);linux GNU tar 不解 zip,回落 unzip。
+function extractArchive(archive: string, dest: string): void {
   mkdirSync(dest, { recursive: true })
-  if (plat === 'win32') {
-    // win zip:PowerShell Expand-Archive(跨 win 可用);备选 unzip。
-    execSync(`powershell -NoProfile -Command "Expand-Archive -Force '${archive}' '${dest}'"`)
+  if (archive.endsWith('.zip')) {
+    try {
+      execSync(`tar -xf '${archive}' -C '${dest}'`)
+    } catch {
+      execSync(`unzip -o '${archive}' -d '${dest}'`)
+    }
   } else {
     execSync(`tar -xzf '${archive}' -C '${dest}'`)
   }
@@ -159,7 +165,7 @@ async function fetchOne(plat: string, arch: string): Promise<void> {
     await download(url, archive)
     const extractDir = path.join(tmpdir(), `zwiki-fetch-${spec.tool}-${plat}-${arch}`)
     rmSync(extractDir, { recursive: true, force: true })
-    extractArchive(archive, extractDir, plat)
+    extractArchive(archive, extractDir)
     const binSrc = findBinary(extractDir, spec.binaryInArchive(plat))
     const binDest = path.join(outDir, spec.binaryInArchive(plat))
     execSync(`cp '${binSrc}' '${binDest}'`)

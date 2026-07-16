@@ -1,4 +1,4 @@
-.PHONY: help install run run-w build typecheck lint format format-check clean
+.PHONY: help install run run-w build typecheck lint format format-check clean package
 
 WORKTREE ?= $(CURDIR)
 
@@ -21,6 +21,13 @@ run-w: ## 复用主仓库依赖,启动 worktree 的 desktop(在 worktree 或主�
 
 build: ## 构建前端 + 后端产物
 	npm run build
+
+package: ## 打包 desktop(electron-builder,默认当前平台;TARGETS="--mac --win --linux" 三平台交叉打包)
+	npm run build
+	npm run build -w @z-wiki/desktop
+	node desktop/scripts/render-icon.mjs
+	cd desktop && npx electron-builder $(TARGETS)
+	@echo "产物在 release/(gitignored)。mac 未签名:双击被 Gatekeeper 拦时右键 -> 打开。"
 
 typecheck: ## 全量类型检查
 	npm run typecheck

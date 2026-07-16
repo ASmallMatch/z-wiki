@@ -1,0 +1,85 @@
+# electron-builder 配置(切片 06:三平台打包,ADR-0003 D1/D8)。
+# 关键约束:
+# - productName 'z-wiki':三端显示名前提(否则 mac 显示目录名、win/linux 显示 @z-wiki/desktop)。
+# - asar false:v1 简化路径解析,规避 preload/fs 在 asar 内的加载坑(ADR 未强制 asar,包体可接受)。
+# - extraResources 平台级过滤 rg/fd/pandoc(见 mac/win/linux 各自的 extraResources,显式写
+#   darwin/win32/linux 与 paths.ts 的 platformArch()=${process.platform}-${process.arch} 同构)+ kb_example + web/dist。
+# 运行:从 desktop/ 目录用 `electron-builder`,Makefile `make package` 编排全流程。
+
+productName: z-wiki
+appId: com.earendil-works.zwiki
+# electron 版本从 desktop/package.json devDependencies 自动读取(必须 ≥38,ADR-0003 D1 + 记忆 electron-version-constraint)。
+
+directories:
+  output: ../release # 产物输出到项目根 release/(gitignored),避免与 desktop/dist 混
+  buildResources: build # desktop/build/(icon.png 由 render-icon.mjs 渲染)
+
+# 不签名/不公证(Out of Scope:mac Apple Developer / Win 代码签名证书,首版未签名产物)。
+# mac 显式 identity null:防 electron-builder 误用钥匙串里其他 identity。
+mac:
+  identity: null
+  category: public.app-category.productivity
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  # rg/fd/pandoc 按平台+架构过滤(electron-builder 的 ${os} token 是 mac/win/linux,
+  # 与 process.platform 的 darwin/win32/linux 不一致,故用平台级 extraResources 显式写 darwin,
+  # 与 paths.ts 的 platformArch()=${process.platform}-${process.arch} 同构)。
+  extraResources:
+    - from: resources/bin/darwin-${arch}
+      to: desktop/resources/bin/darwin-${arch}
+      filter: ['**/*', '!**/.DS_Store']
+
+win:
+  icon: build/icon.png
+  executableName: z-wiki # 显式设:默认从 @z-wiki/desktop 派生含非法 @,nsis exe 名会错
+  target:
+    - target: nsis
+      arch: [x64]
+  extraResources:
+    - from: resources/bin/win32-${arch}
+      to: desktop/resources/bin/win32-${arch}
+      filter: ['**/*', '!**/.DS_Store']
+
+linux:
+  icon: build/icon.png
+  executableName: z-wiki # 显式设:AppImage executableName 默认从 @z-wiki/desktop 派生含非法 @,build 失败
+  category: Office
+  target:
+    - target: AppImage
+      arch: [x64]
+  extraResources:
+    - from: resources/bin/linux-${arch}
+      to: desktop/resources/bin/linux-${arch}
+      filter: ['**/*', '!**/.DS_Store']
+
+nsis:
+  oneClick: false # 非一键安装,允许用户选安装目录
+  perMachine: false # 装到用户目录(不需管理员)
+  allowToChangeInstallationDirectory: true
+
+# app bundle 内容(desktop/ 相对):编译产物 + package.json;排除源码/脚本/资源/图标(资源走 extraResources)。
+asar: false
+files:
+  - dist/**/*
+  - package.json
+  - '!**/*.test.ts'
+  - '!src/**'
+  - '!scripts/**'
+  - '!resources/**'
+  - '!build/**'
+  - '!tsconfig.json'
+  - '!electron-builder.yml'
+
+# bundle 只读资源(铺到 process.resourcesPath/,paths.ts 的 bundleRoot = resourcesPath 读取):
+# - web/dist:前端静态产物(server @fastify/static 同端口 serve)。
+# - kb_example:首次启动复制首个 Vault(ADR-0003 D4)。
+# - rg/fd/pandoc 二进制按平台过滤,见下方 mac/win/linux 平台级 extraResources(ADR-0003 D8 + ADR-0007)。
+extraResources:
+  - from: ../web/dist
+    to: web/dist
+    filter: ['**/*', '!**/.DS_Store']
+  - from: ../kb_example
+    to: kb_example
+    filter: ['**/*', '!**/.DS_Store']
