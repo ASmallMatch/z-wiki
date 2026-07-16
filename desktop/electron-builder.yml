@@ -58,6 +58,11 @@ nsis:
   oneClick: false # 非一键安装,允许用户选安装目录
   perMachine: false # 装到用户目录(不需管理员)
   allowToChangeInstallationDirectory: true
+  # 安装器文件名避开 "z-wiki" 子串:electron-builder NSIS 进程检测用 \z-wiki 路径子串匹配
+  # 判断 app 是否在跑(为覆盖 exe 前关闭在运行的 app),但未排除安装器自身,默认名
+  # "z-wiki Setup 0.1.0.exe" 路径含 \z-wiki -> 自匹配 -> 永远报"z-wiki 正在运行"无法安装。
+  # 改名 zwiki-setup(zwiki 无连字符,不命中 \z-wiki)规避;app exe 名 z-wiki.exe 不变。
+  artifactName: zwiki-setup-${version}.${ext}
 
 # app bundle 内容(desktop/ 相对):编译产物 + package.json;排除源码/脚本/资源/图标(资源走 extraResources)。
 asar: false
