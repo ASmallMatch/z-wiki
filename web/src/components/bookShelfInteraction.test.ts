@@ -159,10 +159,10 @@ test('computeShelfSlots N=2 -> 补虚拟位到 3（slots=3, half=1, virtual=fals
   assert.equal(r.virtual, false)
 })
 
-test('computeShelfSlots N=3 -> 满窗 3 槽（virtual=false）', () => {
+test('computeShelfSlots N=3 -> 补虚拟到 5（slots=5, half=2, virtual=false）', () => {
   const r = computeShelfSlots(3, SLOTS)
-  assert.equal(r.slots, 3)
-  assert.equal(r.half, 1)
+  assert.equal(r.slots, 5)
+  assert.equal(r.half, 2)
   assert.equal(r.virtual, false)
 })
 
@@ -190,6 +190,10 @@ test('computeRealSlots N=2 slots=3 -> [0,1]（左边缘 -1 虚拟）', () => {
 
 test('computeRealSlots N=3 slots=3 -> [-1,0,1]（满窗无虚拟）', () => {
   assert.deepEqual(computeRealSlots(3, 3), [-1, 0, 1])
+})
+
+test('computeRealSlots N=3 slots=5 -> [0,1,2]（正侧顺序对，负侧 2 虚拟）', () => {
+  assert.deepEqual(computeRealSlots(5, 3), [0, 1, 2])
 })
 
 test('computeRealSlots N=4 slots=3 -> [-1,0,1]（virtual reflow，窗口内无虚拟）', () => {

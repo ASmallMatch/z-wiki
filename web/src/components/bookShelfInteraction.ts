@@ -5,14 +5,14 @@
 export const CLICK_MOVE_PX = 6 // 位移阈值：小于此判定为点击而非拖拽
 
 // 槽位规划（从 BookShelf3D 主 useEffect 抽出的纯决策）：slot0 钉中心。
-// N≥4 时 slots≤N-1 留换皮空间走 reflow（virtual=true，自由拖滚遍）；
-// N=3 满窗 slots=N 走 clampRot。奇数化保 slot0。
-// D1（ADR-0015）：slots 下限 3--N=1,2 补虚拟位到 3（最小窗口），N≥3 零变化。
+// N≤3：补虚拟满窗，realSlots 正侧 [0..N-1] 顺序对（向左拖 第一->第二->第三…）。
+//   N=1,2 -> slots=3；N=3 -> slots=5（2 虚拟）。ADR-0015 D1 + N=3 补到 5。
+// N≥4：slots=N-1 留 reflow 空间（virtual=true，自由拖滚遍），奇数化保 slot0。
 export function computeShelfSlots(
   n: number,
   slotCount: number,
 ): { slots: number; half: number; virtual: boolean } {
-  let slots = Math.max(3, Math.min(n, slotCount, Math.max(n - 1, 3)))
+  let slots = n <= 3 ? Math.max(3, 2 * n - 1) : Math.min(n, slotCount, Math.max(n - 1, 3))
   if (slots % 2 === 0) slots -= 1
   const half = (slots - 1) / 2
   const virtual = n > slots
