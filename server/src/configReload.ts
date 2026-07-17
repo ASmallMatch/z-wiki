@@ -1,7 +1,7 @@
 // configReload.ts - 冷重载编排(Interaction sibling helper,类比 relayEvent.ts)。
 // 把 POST /api/config/llm 的"写 config -> reload -> apply"编排从 interaction.ts 闭包外提,
 // 可隔离测(mock agentCtx + mock sessions,验证顺序与双失败路径)。不广播 -- 广播是 Interaction 职责,
-// 且 serializeThinking 依赖活跃 chat session(闭包状态),不入此模块。
+// 且 currentThinkingLevel 依赖活跃 chat session(闭包状态),不入此模块。
 //
 // 这是 Interaction 的业务编排(workflow:序列 + 失败 staging),不是 AgentHost 的"pi SDK 封装/mechanism"。
 // AgentHost 提供 primitive(updateConfig 写步 / reloadAgentConfig reload 步 / applyModelToSessions apply 步),

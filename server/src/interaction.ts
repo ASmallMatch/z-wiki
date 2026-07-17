@@ -26,7 +26,6 @@ import { buildView, type PageMeta } from './buildView.js'
 import {
   DEFAULT_CONTEXT_WINDOW,
   THINKING_LEVELS,
-  isDeepSeekModel,
   maskApiKey,
   readConfig,
   type ThinkingLevel,
@@ -145,26 +144,21 @@ export async function createInteraction(
     }
   }
 
+  /** 首个活跃 chat session(读 session 级运行时状态用,如思考档位;无连接时 undefined)。 */
+  function firstChatSession(): AgentSession | undefined {
+    return chatSessions.values().next().value
+  }
+
   /**
-   * 序列化思考模式状态(ADR-0004 D8):当前 level + 当前 model 支持的档位(供前端渲染菜单 + 灰显)。
-   * available 依赖当前 model,故从活跃 chat session.getAvailableThinkingLevels() 拿(已含 model 能力);
-   * 无活跃 session(如 GET /api/thinking 在 WS 连接前调用)时回退 ['off'],前端连 WS 后 session_init 覆盖。
+   * 当前思考档位(ADR-0021):有活跃 chat session 读 session 实际值(setThinkingLevel 后的
+   * 运行时真相),无活跃 session(如 GET /api/thinking 在 WS 连接前调用)回退 config 持久化值。
+   * ADR-0021 起不再暴露 available 列表(reasoning 恒 true,档位恒全,前端两档切换不需要)。
    */
-  function serializeThinking(
+  function currentThinkingLevel(
     session: AgentSession | undefined,
     configLevel: ThinkingLevel,
-  ): { level: ThinkingLevel; available: ThinkingLevel[] } {
-    if (session) {
-      return {
-        level: session.thinkingLevel as ThinkingLevel,
-        // 过滤 THINKING_LEVELS:pi-ai 可能返回 'max'(EXTENDED),但 pi-agent-core 类型不含,
-        // z-wiki 不暴露 max(ADR-0004 D8)。过滤掉避免前端显示 max 但 POST 被校验拒绝。
-        available: (session.getAvailableThinkingLevels() as ThinkingLevel[]).filter((lv) =>
-          THINKING_LEVELS.includes(lv),
-        ),
-      }
-    }
-    return { level: configLevel, available: ['off'] }
+  ): ThinkingLevel {
+    return (session?.thinkingLevel as ThinkingLevel | undefined) ?? configLevel
   }
 
   /** 序列化 session 累计统计(前端做差值得本轮;contextUsage 反映 session 总占用)。 */
@@ -283,15 +277,13 @@ export async function createInteraction(
       return
     }
     chatSessions.set(socket, session)
-    // 推初始 session 信息:模型名 + 上下文窗口 + 思考模式状态(level + available),供 header 显示 + quickbar 思考按钮渲染。
+    // 推初始 session 信息:模型名 + 上下文窗口 + 思考档位,供 header 显示 + quickbar 思考开关渲染。
     // 与 createChatSession 内部用同一 resolveModel(agentCtx),model 引用一致。
-    const thinking = serializeThinking(session, agentCtx.config.thinkingLevel ?? 'off')
     socket.send(
       JSON.stringify({
         type: 'session_init',
         model: serializeModel(resolveModel(agentCtx)),
-        thinkingLevel: thinking.level,
-        thinkingLevels: thinking.available,
+        thinkingLevel: currentThinkingLevel(session, agentCtx.config.thinkingLevel ?? 'off'),
       }),
     )
 
@@ -388,9 +380,6 @@ export async function createInteraction(
       apiKeyMasked: maskApiKey(cfg.apiKey),
       exposedApiSpecs: cfg.exposedApiSpecs ?? [],
       shellPath: cfg.shellPath ?? '',
-      // reasoning 当前生效值:config 显式覆盖,否则按 baseUrl 自动推断(DeepSeek -> true,ADR-0004 D8)。
-      // 供设置页勾选框显示;用户改 -> POST /api/config/llm 显式写 config.reasoning。
-      reasoning: cfg.reasoning ?? isDeepSeekModel(cfg.baseUrl, cfg.model),
     }
   })
 
@@ -540,7 +529,6 @@ export async function createInteraction(
       model?: string
       apiKey?: string
       contextWindow?: number
-      reasoning?: boolean
     }
     // 校验:4 字段都必须是非空字符串(防空 + 防非字符串类型,coding-style 边界校验)
     const required: Array<[unknown, string]> = [
@@ -578,9 +566,8 @@ export async function createInteraction(
           api: body.api as string,
           model: body.model as string,
           apiKey: body.apiKey as string,
-          // contextWindow / reasoning:仅在提供时覆盖(条件展开,保持原"undefined 不改"语义)
+          // contextWindow:仅在提供时覆盖(条件展开,保持原"undefined 不改"语义)
           ...(contextWindowNum !== undefined ? { contextWindow: contextWindowNum } : {}),
-          ...(typeof body.reasoning === 'boolean' ? { reasoning: body.reasoning } : {}),
         }),
       )
     } catch (err) {
@@ -595,17 +582,15 @@ export async function createInteraction(
       throw err
     }
     broadcast({ type: 'config_reloaded' })
-    // 广播新 model 信息 + 思考模式状态,前端 header 更新模型名/上下文窗口(model 已 reload,引用为新对象);
-    // model 切换后 availableThinkingLevels 可能变(setModel 会 clamp thinkingLevel),带 thinking 让前端更新菜单 + 灰显。
-    const thinking = serializeThinking(
-      chatSessions.values().next().value,
-      agentCtx.config.thinkingLevel ?? 'off',
-    )
+    // 广播新 model 信息 + 思考档位,前端 header 更新模型名/上下文窗口(model 已 reload,引用为新对象)。
+    // reasoning 恒 true 后 setModel 不再 clamp thinkingLevel(ADR-0021),档位原样带回去即可。
     broadcast({
       type: 'session_init',
       model: serializeModel(model),
-      thinkingLevel: thinking.level,
-      thinkingLevels: thinking.available,
+      thinkingLevel: currentThinkingLevel(
+        firstChatSession(),
+        agentCtx.config.thinkingLevel ?? 'off',
+      ),
     })
     req.log.info('LLM config reloaded and applied to all sessions')
     return reply.send({ ok: true })
@@ -628,14 +613,15 @@ export async function createInteraction(
     return reply.send({ ok: true, restartRequired: true })
   })
 
-  // 查询思考模式状态(ADR-0004 D8):level 来自 config,available 来自活跃 chat session(无则 ['off'])。
+  // 查询思考档位(ADR-0021):level 来自活跃 chat session,无 session 回退 config。
   // 前端 WS 连接前初始渲染用;连上后 session_init 覆盖准确值。
   app.get('/api/thinking', async () => {
-    const session = chatSessions.values().next().value
-    return serializeThinking(session, agentCtx.config.thinkingLevel ?? 'off')
+    return {
+      level: currentThinkingLevel(firstChatSession(), agentCtx.config.thinkingLevel ?? 'off'),
+    }
   })
 
-  // 修改思考模式(ADR-0004 D8):写 config + 当前 chat session.setThinkingLevel,不丢上下文。
+  // 修改思考模式(ADR-0004 D8 / ADR-0021):写 config + 当前 chat session.setThinkingLevel,不丢上下文。
   // 只切 chat session(ingest 保持 off,后台编译不需思考)。返回实际生效 level(防 clamp 误导)。
   app.post('/api/config/thinking', async (req, reply) => {
     const body = (req.body ?? {}) as { level?: string }
@@ -648,13 +634,10 @@ export async function createInteraction(
     agentCtx.config.thinkingLevel = level
     // 只切 chat session,不切 ingest(后台编译保持 off)
     const actual = applyThinkingToChatSession([...chatSessions.values()], level)
-    // 广播 thinking 状态(setThinkingLevel clamp 后 level 可能变,带 available 让前端同步菜单)
-    const session = chatSessions.values().next().value
-    const thinking = serializeThinking(session, level)
+    // 广播思考档位(setThinkingLevel clamp 后 level 可能变,带实际值防误导)
     broadcast({
       type: 'thinking_changed',
-      thinkingLevel: thinking.level,
-      thinkingLevels: thinking.available,
+      thinkingLevel: currentThinkingLevel(firstChatSession(), level),
     })
     req.log.info({ requested: level, actual }, 'thinking level saved and applied to chat sessions')
     return reply.send({ level: actual })

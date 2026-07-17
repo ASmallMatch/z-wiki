@@ -29,8 +29,6 @@ interface ConfigStatus {
   apiKeyMasked: string
   exposedApiSpecs: string[]
   shellPath: string
-  /** model 是否支持思考(当前生效 = config.reasoning ?? 自动推断,ADR-0004 D8)。 */
-  reasoning: boolean
 }
 
 export default function Settings() {
@@ -50,7 +48,6 @@ export default function Settings() {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [shellPathInput, setShellPathInput] = useState('')
-  const [reasoningInput, setReasoningInput] = useState(false)
   const [savingShell, setSavingShell] = useState(false)
   const [newVaultName, setNewVaultName] = useState('')
   const [newVaultParent, setNewVaultParent] = useState('')
@@ -82,7 +79,6 @@ export default function Settings() {
       setContextWindowInput(String(status.contextWindow ?? 128000))
       setApiKeyInput(status.apiKey || '')
       setShellPathInput(status.shellPath || '')
-      setReasoningInput(status.reasoning)
       setIngestActive(((await activeRes.json()) as { active: boolean }).active ?? false)
       const specsData = (await specsRes.json()) as { specs: ApiSpecEntry[]; exposed: string[] }
       setSpecs(specsData.specs ?? [])
@@ -122,7 +118,6 @@ export default function Settings() {
           model: modelInput,
           contextWindow: Number(contextWindowInput),
           apiKey: apiKeyInput,
-          reasoning: reasoningInput,
         }),
       })
       if (!res.ok) {
@@ -426,30 +421,6 @@ export default function Settings() {
                   )}
                 </button>
               </div>
-            </div>
-          </div>
-
-          <div className="settings-field">
-            <label className="settings-label" htmlFor="llm-reasoning">
-              思考模式
-            </label>
-            <div className="settings-control">
-              <button
-                type="button"
-                id="llm-reasoning"
-                className="settings-switch"
-                role="switch"
-                aria-checked={reasoningInput}
-                onClick={() => setReasoningInput((v) => !v)}
-                onKeyDown={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault()
-                    setReasoningInput((v) => !v)
-                  }
-                }}
-              >
-                <span className="settings-switch-knob" aria-hidden="true" />
-              </button>
             </div>
           </div>
 

@@ -13,12 +13,12 @@ import { DEFAULT_EXPOSED_SPECS, normalizeBaseUrl } from './apiSpecs.js'
  * config 层独立定义 union literal,不 import pi SDK--配置 schema 不耦合 SDK,
  * readConfig 校验需本地枚举(THINKING_LEVELS)。两者结构相同,赋给 pi 参数时兼容。
  * 注:pi-ai 的 EXTENDED_THINKING_LEVELS 含 'max',但 pi-agent-core 的 ThinkingLevel 类型不含
- * (dist 版本),z-wiki 不暴露 max 档--model 支持 max 时由 getAvailableThinkingLevels 返回,
- * serializeThinking 过滤 THINKING_LEVELS 后不显示,避免 config 与 pi 类型不一致。
+ * (dist 版本),z-wiki 不暴露 max 档(ADR-0004 D8)。
+ * UI 只暴露 off/非-off 两档(ADR-0021),config 仍存全档名——持久化保真,呈现层塌缩。
  */
 export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
-/** 全档列表(供 readConfig 校验 + 前端渲染默认顺序)。与 pi-agent-core ThinkingLevel 一致,新增档需同步。 */
+/** 全档列表(供 readConfig 校验 + POST /api/config/thinking 校验)。与 pi-agent-core ThinkingLevel 一致,新增档需同步。 */
 export const THINKING_LEVELS: readonly ThinkingLevel[] = [
   'off',
   'minimal',
@@ -59,18 +59,12 @@ export interface ConfigJson {
    */
   shellPath?: string
   /**
-   * 思考模式等级(ADR-0004 D8):off=关闭思考,其余为 pi 的 thinking level(minimal/low/medium/high/xhigh/max)。
+   * 思考模式等级(ADR-0004 D8):off=关闭思考,其余为 pi 的 thinking level(minimal/low/medium/high/xhigh)。
    * 仅作用于 chat session(ingest 保持 off,后台编译不需思考)。默认 'off'。持久化到 config.json,
    * createChatSession 读它作初始 thinkingLevel;运行时切换走 POST /api/config/thinking。
+   * UI 只暴露 off/medium 两档切换(ADR-0021),此处仍存全档名(手编高档位的逃逸口保留)。
    */
   thinkingLevel?: ThinkingLevel
-  /**
-   * model 是否支持思考(reasoning,ADR-0004 D8):显式覆盖自动推断。
-   * undefined(默认):generateModelsJson 按 baseUrl 自动推断(DeepSeek -> true)。
-   * true/false:显式声明,覆盖自动(如自建 Qwen-thinking 端点填 true,或强制关 DeepSeek 思考)。
-   * 传入 models.json 的 model.reasoning,pi-ai 据此判断是否支持思考 + 是否传 thinking 参数。
-   */
-  reasoning?: boolean
   /** 全局偏好(首版占位,未来扩展)。 */
   preferences?: Record<string, unknown>
 }
@@ -85,7 +79,7 @@ export interface ModelsJson {
       models: Array<{
         id: string
         contextWindow: number
-        /** model 是否支持思考(pi-ai model.reasoning);仅 true 时写入,undefined/false 不传。 */
+        /** model 是否支持思考(pi-ai model.reasoning);ADR-0021 起恒 true(乐观声明)。 */
         reasoning?: boolean
         /** pi 档位 -> provider effort 映射(pi-ai model.thinkingLevelMap);仅 DeepSeek 自动注入。 */
         thinkingLevelMap?: Partial<Record<ThinkingLevel, string | null>>
@@ -133,7 +127,7 @@ export function maskApiKey(key: string): string {
 }
 
 /**
- * 是否为 DeepSeek 模型(供 reasoning 自动推断 + thinkingLevelMap 注入复用,ADR-0004 D8)。
+ * 是否为 DeepSeek 模型(供 thinkingLevelMap 自动注入,ADR-0004 D8 / ADR-0021)。
  * 检测 baseUrl(官方 api.deepseek.com)或 model.id 含 deepseek(覆盖 ark 等代理端点跑 DeepSeek)。
  */
 export function isDeepSeekModel(baseUrl: string, modelId: string): boolean {
@@ -160,31 +154,28 @@ function isDeepSeekHost(baseUrl: string): boolean {
  * 启动时由 buildAgentContext 调用,结果写入 agentDir/models.json 喂 ModelRegistry。
  */
 export function generateModelsJson(
-  config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model' | 'contextWindow' | 'reasoning'>,
+  config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model' | 'contextWindow'>,
 ): ModelsJson {
-  // reasoning:config 显式覆盖;否则按 baseUrl 自动推断(DeepSeek -> true)。ADR-0004 D8 / ADR-0012。
-  // pi-ai 的 openai-completions deepseek 分支要求 model.reasoning=true 才传 thinking 参数,
-  // 故 reasoning=false/undefined 时不写 reasoning 字段(pi-ai 当 falsy,不传 thinking)。
+  // reasoning 恒 true(ADR-0021 乐观声明):任何 model 都声明支持思考。off 时 pi 不发任何
+  // 思考参数、零副作用;on 时真·思考模型正常工作,不支持的模型由 provider 报错或静默忽略
+  // (能力判断责任交还 provider,z-wiki 不再人工声明)。DeepSeek 额外注入 effort 映射。
   const isDeepSeek = isDeepSeekModel(config.baseUrl, config.model)
-  const reasoning = config.reasoning ?? isDeepSeek
   const models: ModelsJson['providers'][string]['models'] = []
   if (config.model) {
     const m: ModelsJson['providers'][string]['models'][number] = {
       id: config.model,
       contextWindow: config.contextWindow ?? DEFAULT_CONTEXT_WINDOW,
+      reasoning: true,
     }
-    if (reasoning) {
-      m.reasoning = true
-      // DeepSeek effort 只认 high/max(minimal/low/medium->high, xhigh->max),自动注入映射。
-      // 其他 reasoning model 不注入,走 pi 默认(传 pi 档名,provider 自行映射或忽略)。
-      if (isDeepSeek) {
-        m.thinkingLevelMap = {
-          minimal: 'high',
-          low: 'high',
-          medium: 'high',
-          high: 'high',
-          xhigh: 'max',
-        }
+    // DeepSeek effort 只认 high/max(minimal/low/medium->high, xhigh->max),自动注入映射。
+    // 其他 reasoning model 不注入,走 pi 默认(传 pi 档名,provider 自行映射或忽略)。
+    if (isDeepSeek) {
+      m.thinkingLevelMap = {
+        minimal: 'high',
+        low: 'high',
+        medium: 'high',
+        high: 'high',
+        xhigh: 'max',
       }
     }
     models.push(m)
@@ -273,9 +264,9 @@ export function readConfig(configPath: string): ConfigJson {
       `[z-wiki] config.json 的 thinkingLevel 非法(${JSON.stringify(raw.thinkingLevel)}),回退 off。`,
     )
   }
-  // reasoning:可选 boolean(显式覆盖自动推断)。非 boolean -> undefined(走自动,ADR-0004 D8)。
-  const reasoning = typeof raw.reasoning === 'boolean' ? raw.reasoning : undefined
-  // 显式列举 ConfigJson 已知字段,不 ...raw 全保留——避免老 config 的废弃字段(如 provider)
+  // reasoning 字段已于 ADR-0021 移除(恒 true 乐观声明):老 config 残留的 reasoning 键
+  // 逐字段解析天然忽略,静默丢弃不报错(与 provider 不同——被忽略无副作用)。
+  // 显式列举 ConfigJson 已知字段,不 ...raw 全保留——避免老 config 的废弃字段(如 provider/reasoning)
   // 残留进运行时对象 + 被 writeConfig 写回 config.json(ADR-0004 D1 干掉 provider 要彻底)。
   // 字段兜底:老 config 可能缺 baseUrl/apiKey/model(undefined),回退空字符串避免下游 .trim() 抛错。
   return {
@@ -290,7 +281,6 @@ export function readConfig(configPath: string): ConfigJson {
     // shellPath:非字符串(含 undefined)→ 空(走 pi 自动探测)。不 trim,完整路径原样保留。
     shellPath: typeof raw.shellPath === 'string' ? raw.shellPath : '',
     thinkingLevel,
-    reasoning,
     preferences: raw.preferences,
   }
 }

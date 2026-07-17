@@ -103,9 +103,8 @@ interface ServerMsg {
   vault?: { path: string; name: string }
   model?: ModelInfo
   stats?: SessionStatsPayload
-  // 思考模式状态(ADR-0004 D8):session_init / thinking_changed 携带,供 quickbar 思考按钮渲染 + 灰显。
+  // 思考档位(ADR-0021):session_init / thinking_changed 携带,供 quickbar 思考开关渲染。
   thinkingLevel?: string
-  thinkingLevels?: string[]
 }
 
 let counter = 0
@@ -394,9 +393,8 @@ export function useChat() {
   const [streaming, setStreaming] = useState(false)
   const [connected, setConnected] = useState(false)
   const [model, setModel] = useState<ModelInfo | null>(null)
-  // 思考模式状态(ADR-0004 D8):level 当前档,levels 可选档(按 model 能力,off 始终在;不支持思考时 ['off'])。
+  // 思考档位(ADR-0021):UI 塌缩为两档(off/非-off 即开),不再维护 available 列表。
   const [thinkingLevel, setThinkingLevel] = useState<string>('off')
-  const [thinkingLevels, setThinkingLevels] = useState<string[]>(['off'])
   const [turnStats, setTurnStats] = useState<TurnStats | null>(null)
   const [contextUsage, setContextUsage] = useState<SessionStatsPayload['contextUsage']>(null)
   // ingest 进度角标(上传+编译全过程);null = 无角标
@@ -517,12 +515,10 @@ export function useChat() {
         case 'session_init':
           if (msg.model) setModel(msg.model)
           if (msg.thinkingLevel) setThinkingLevel(msg.thinkingLevel)
-          if (msg.thinkingLevels) setThinkingLevels(msg.thinkingLevels)
           break
         case 'thinking_changed':
-          // 思考模式切换广播(自己或同库其他客户端切换):同步 level + available(可能 clamp)。
+          // 思考档位切换广播(自己或同库其他客户端切换):同步 level(可能 clamp)。
           if (msg.thinkingLevel) setThinkingLevel(msg.thinkingLevel)
-          if (msg.thinkingLevels) setThinkingLevels(msg.thinkingLevels)
           break
       }
     }
@@ -642,8 +638,8 @@ export function useChat() {
     }
   }, [])
 
-  // 切换思考模式(ADR-0004 D8):POST 写 config + chat session.setThinkingLevel。
-  // 不本地乐观更新--server broadcast thinking_changed 会推回自己,同步 level + available(防 clamp 不一致)。
+  // 切换思考模式(ADR-0021):POST 写 config + chat session.setThinkingLevel。
+  // 不本地乐观更新--server broadcast thinking_changed 会推回自己,同步 level(防 clamp 不一致)。
   const setThinking = useCallback(async (level: string) => {
     try {
       const res = await fetch('/api/config/thinking', {
@@ -692,7 +688,6 @@ export function useChat() {
     contextUsage,
     ingest,
     thinkingLevel,
-    thinkingLevels,
     setThinking,
     toggleThinking,
   }

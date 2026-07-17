@@ -320,72 +320,35 @@ interface ChatPanelProps {
   onClose: () => void
 }
 
-/** 思考模式下拉按钮(ADR-0004 D8):显示当前档,点击展开选档;不支持思考时(只有 off)灰显 + tooltip。 */
+/** 思考开关拨到"开"时使用的档位(ADR-0021):对齐 pi 的 DEFAULT_THINKING_LEVEL('medium',
+ *  pi 未导出该常量,z-wiki 本地定义并跟随)。手编 config 高档位的用户拨"关"再拨"开"归位到此档。 */
+const THINKING_ON_LEVEL = 'medium'
+
+/** 思考开关(ADR-0021):两档切换,点击即 off <-> medium。
+ *  文案显示真实档名(手编 config 的 high 等也诚实显示);非 off 档点击回到 off。
+ *  onSelect 实参是"下一档"(off -> medium,非 off -> off),由组件内部算出。 */
 function ThinkingButton({
   level,
-  levels,
   disabled,
   onSelect,
 }: {
   level: string
-  levels: string[]
   disabled: boolean
   onSelect: (level: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  // model 不支持思考时(available 只有 off)灰显 + tooltip,不可展开。
-  const unsupported = levels.length <= 1 && levels[0] === 'off'
-  // 展开时点击外部关闭菜单
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    // capture 阶段:ChatDrawer 的 chat-drawer-panel onMouseDown stopPropagation 阻止冒泡,
-    // 冒泡阶段 document 监听收不到;改 capture 在 target 前触发,确保外部点击能关闭菜单。
-    document.addEventListener('mousedown', onDoc, true)
-    return () => document.removeEventListener('mousedown', onDoc, true)
-  }, [open])
+  const on = level !== 'off'
   return (
-    <div className="chat-thinking-toggle" ref={ref}>
-      <button
-        type="button"
-        className="chat-quick"
-        onClick={() => !disabled && setOpen((v) => !v)}
-        disabled={disabled}
-        title={unsupported ? '当前模型未开启思考(reasoning),去设置页 LLM 配置开启' : '思考模式'}
-        aria-label="思考模式"
-        aria-expanded={open}
-      >
-        思考:{level}
-      </button>
-      {open && (
-        <ul className="chat-thinking-menu" role="menu">
-          {unsupported ? (
-            <li className="chat-thinking-hint" role="menuitem">
-              当前模型未开启思考,去设置页 LLM 配置勾选 reasoning
-            </li>
-          ) : (
-            levels.map((lv) => (
-              <li key={lv} role="menuitem">
-                <button
-                  type="button"
-                  className={lv === level ? 'active' : ''}
-                  onClick={() => {
-                    onSelect(lv)
-                    setOpen(false)
-                  }}
-                >
-                  {lv}
-                  {lv === level ? ' ✓' : ''}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
-    </div>
+    <button
+      type="button"
+      className="chat-quick"
+      onClick={() => onSelect(on ? 'off' : THINKING_ON_LEVEL)}
+      disabled={disabled}
+      title={on ? '关闭思考' : '开启思考'}
+      aria-label="思考模式"
+      aria-pressed={on}
+    >
+      思考:{level}
+    </button>
   )
 }
 
@@ -401,7 +364,6 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
     contextUsage,
     ingest,
     thinkingLevel,
-    thinkingLevels,
     setThinking,
     toggleThinking,
   } = useChat()
@@ -555,9 +517,8 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         </button>
         <ThinkingButton
           level={thinkingLevel}
-          levels={thinkingLevels}
           disabled={!connected || streaming}
-          onSelect={setThinking}
+          onSelect={(lv) => void setThinking(lv)}
         />
       </div>
       <div

@@ -54,9 +54,8 @@ test('ingest 后 kb_updated 广播为对象(回归双重编码 bug)', async () =
     dispose: () => {},
     getSessionStats: mockStats,
     setModel: async () => {},
-    // thinking 相关(ADR-0004 D8):session_init 推送时 serializeThinking 读 level + available。
+    // thinking 相关(ADR-0021):session_init 推送时 currentThinkingLevel 读 session.thinkingLevel。
     thinkingLevel: 'off' as const,
-    getAvailableThinkingLevels: () => ['off'],
     setThinkingLevel: () => {},
   })
 
