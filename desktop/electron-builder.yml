@@ -57,6 +57,9 @@ linux:
   icon: build/icon.png
   executableName: z-wiki # 显式设:AppImage executableName 默认从 @z-wiki/desktop 派生含非法 @,build 失败
   category: Office
+  # AppImage 的 ${arch} token 解析为 x86_64(dmg/nsis 是 x64),与命名规范/latest.json full map
+  # 键(updater fullPackageKey = linux-x64)不一致;linux 只有 x64 一个 target,硬编码 x64。
+  artifactName: z-wiki-${version}-${os}-x64.${ext}
   target:
     - target: AppImage
       arch: [x64]
