@@ -10,6 +10,10 @@ productName: z-wiki
 appId: com.earendil-works.zwiki
 # electron 版本从 desktop/package.json devDependencies 自动读取(必须 ≥38,ADR-0003 D1 + 记忆 electron-version-constraint)。
 
+# artifactName:统一完整包命名 z-wiki-{version}-{os}-{arch}.{ext}(ADR-0018 D4)。${os}=mac/win/linux
+# (与 process.platform 的 darwin/win32/linux 不同)。latest.json 引用 + clean-release 过滤依赖此命名。
+artifactName: z-wiki-${version}-${os}-${arch}.${ext}
+
 directories:
   output: ../release # 产物输出到项目根 release/(gitignored),避免与 desktop/dist 混
   buildResources: build # desktop/build/(icon.png 由 render-icon.mjs 渲染)
@@ -66,8 +70,6 @@ nsis:
   perMachine: false # 装到用户目录(不需管理员)
   allowToChangeInstallationDirectory: true
   include: installer.nsh # desktop/build/installer.nsh:空 customCheckAppRunning 跳过默认 app-running 检测(根治 issue #6865 误报)
-  # 安装器文件名 zwiki-setup(历史改名,保留无害):早期据子串匹配推测改的名,真根治靠上面 include。
-  artifactName: zwiki-setup-${version}.${ext}
 
 # app bundle 内容(desktop/ 相对):编译产物 + package.json;排除源码/脚本/资源/图标(资源走 extraResources)。
 asar: false

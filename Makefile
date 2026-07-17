@@ -27,6 +27,7 @@ package: ## 打包 desktop(electron-builder,默认当前平台;TARGETS="--mac --
 	npm run build -w @z-wiki/desktop
 	node desktop/scripts/render-icon.mjs
 	cd desktop && npx electron-builder $(TARGETS)
+	npx tsx scripts/package-update-bundles.ts
 	@echo "产物在 release/(gitignored)。mac 未签名:双击被 Gatekeeper 拦时右键 -> 打开。"
 
 typecheck: ## 全量类型检查
