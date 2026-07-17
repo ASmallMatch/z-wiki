@@ -51,7 +51,7 @@ function main(): void {
   }
   process.stdout.write(
     `保留 ${plan.keep.length} 项,删除 ${plan.delete.length} 项:\n` +
-      (plan.delete.length ? plan.delete.map((d) => `  - ${d}`).join('\n') + '\n' : '') +
+      (plan.delete.length ? `${plan.delete.map((d) => `  - ${d}`).join('\n')}\n` : '') +
       `release/ 清理完成。\n`,
   )
 }

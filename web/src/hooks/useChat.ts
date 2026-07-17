@@ -473,7 +473,7 @@ export function useChat() {
         case 'ingest_progress':
           // 里程碑锚点(ADR-0019):更新当前锚点 + 插值目标(下一锚点)。仅 compiling 阶段生效。
           setIngest((prev) => {
-            if (!prev || prev.phase !== 'compiling') return prev
+            if (prev?.phase !== 'compiling') return prev
             const anchor = msg.percent ?? prev.anchor
             return { ...prev, anchor, target: nextAnchor(anchor) }
           })
@@ -561,6 +561,7 @@ export function useChat() {
   }, [ingest?.phase, ingest?.anchor, ingest?.target])
 
   // ingest done 收尾:从当前 percent 平滑插值到 100(600ms),避免从 15/50 突跳 100。
+  // biome-ignore lint/correctness/useExhaustiveDependencies: from 故意锁定 phase 变 done 那一刻的 percent;percent 更新由 interval 内部驱动,进依赖会每 tick 重建 interval 重置计时
   useEffect(() => {
     if (ingest?.phase !== 'done') return
     const from = ingest.percent
