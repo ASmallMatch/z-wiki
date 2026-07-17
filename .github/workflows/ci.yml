@@ -1,0 +1,29 @@
+# CI:push/PR 到 main 时跑 typecheck + lint + test,口径对齐本地 make 命令。
+# 说明:
+# - node 22.x 单版本:Electron 38 内置 Node 22,CI 与桌面运行时对齐(桌面项目跑矩阵无意义)
+# - kb_example 已在仓库内(desktopInit.test 引用);kb/ 由测试 mkdtemp 自造,无需准备步骤
+# - desktop/resources/bin(rg/fd/pandoc)gitignored,desktopInit.test 缺失时自动 skip(不 fail)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      # CI 不跑 electron 运行时,跳过 ~100MB 二进制下载(desktop typecheck 只需包内 .d.ts)
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
