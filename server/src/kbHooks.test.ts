@@ -33,8 +33,13 @@ test('shouldBlockRead: 大写后缀 block', () => {
   assert.ok(shouldBlockRead('raw/X.DOCX'))
 })
 
-test('shouldBlockRead: 非白名单后缀放行(.txt 等)', () => {
+test('shouldBlockRead: 纯文本后缀(.txt/.text/.log)放行 read(ADR-0018)', () => {
   assert.equal(shouldBlockRead('raw/notes.txt'), null)
+  assert.equal(shouldBlockRead('raw/data.text'), null)
+  assert.equal(shouldBlockRead('raw/run.log'), null)
+})
+
+test('shouldBlockRead: 非白名单后缀放行(.bin 等)', () => {
   assert.equal(shouldBlockRead('raw/data.bin'), null)
 })
 

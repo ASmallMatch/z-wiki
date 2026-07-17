@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
 import { SUBSEAM_DIRS, isRawPath, isWithinKb, isWritablePath } from './kbLayout.js'
-import { ALLOWED_UPLOAD_EXTS } from './uploadExts.js'
+import { ALLOWED_UPLOAD_EXTS, PLAINTEXT_EXTS } from './uploadExts.js'
 
 // 命中以下任一关键词则视为用户主动要求外部知识,不注入引导
 const EXTERNAL_KW =
@@ -74,14 +74,14 @@ export function shouldBlockWritePath(
 }
 
 /**
- * 判断 read 工具是否应拦截(ADR-0011):非 md 的 pandoc 可转格式用 pandoc 工具,
- * read 读会拿二进制乱码。后缀在 ALLOWED_UPLOAD_EXTS 且非 .md -> block。
- * .md 放行;非白名单后缀(如 .txt)放行(read 能读纯文本)。纯函数,便于单测。
+ * 判断 read 工具是否应拦截(ADR-0011 + ADR-0018):pandoc 可转格式用 pandoc 工具,
+ * read 读会拿二进制乱码。后缀在 ALLOWED_UPLOAD_EXTS 且非 md/纯文本 -> block。
+ * .md 与纯文本(.txt/.text/.log,PLAINTEXT_EXTS)放行 read 直读;其他非白名单后缀(如 .bin)也放行。纯函数,便于单测。
  */
 export function shouldBlockRead(filePath: string): { reason: string } | null {
   if (!filePath) return null
   const ext = path.extname(filePath).toLowerCase()
-  if (!ext || ext === '.md') return null
+  if (!ext || ext === '.md' || PLAINTEXT_EXTS.includes(ext)) return null
   if (ALLOWED_UPLOAD_EXTS.includes(ext)) {
     return {
       reason: `${ext} 是非 md 文件,read 会拿二进制乱码。请用 pandoc 工具转文本:pandoc({ filePath: "<路径>" })。`,

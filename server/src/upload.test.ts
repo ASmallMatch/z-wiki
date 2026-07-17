@@ -6,7 +6,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { createServer } from './index.js'
 import { CONFIG_JSON, makeVault } from './testFixtures.js'
-import { ALLOWED_UPLOAD_EXTS, checkUploadExt } from './uploadExts.js'
+import { ALLOWED_UPLOAD_EXTS, PLAINTEXT_EXTS, checkUploadExt } from './uploadExts.js'
 
 // 集成测试 /api/upload 后缀白名单(ADR-0007 决策 1 + 决策 5)。
 // 白名单逻辑由 checkUploadExt 纯函数覆盖(快,无 server/ingest);
@@ -31,6 +31,12 @@ function multipart(boundary: string, filename: string, content: string): string 
 
 test('checkUploadExt: 白名单后缀放行(返回 null)', async () => {
   for (const ext of ALLOWED_UPLOAD_EXTS) {
+    assert.equal(checkUploadExt(ext), null, `${ext} 应放行`)
+  }
+})
+
+test('checkUploadExt: 纯文本后缀(.txt/.text/.log)放行(ADR-0018)', async () => {
+  for (const ext of PLAINTEXT_EXTS) {
     assert.equal(checkUploadExt(ext), null, `${ext} 应放行`)
   }
 })
@@ -77,6 +83,24 @@ test('POST /api/upload: 白名单格式 -> 200 落 raw/(以 .xlsx 为代表)', a
     })
     assert.equal(res.statusCode, 200)
     assert.ok(existsSync(path.join(vault.kbRoot, 'raw', 'sheet.xlsx')), '应落 raw/')
+  } finally {
+    await interaction.app.close()
+    await fs.rm(vault.root, { recursive: true, force: true })
+  }
+})
+
+test('POST /api/upload: .txt -> 200 落 raw/(纯文本,ADR-0018)', async () => {
+  const vault = await makeVault()
+  const interaction = await createServer({ kbRoot: vault.kbRoot, agentDir: vault.agentDir })
+  try {
+    const res = await interaction.app.inject({
+      method: 'POST',
+      url: '/api/upload',
+      headers: { 'content-type': 'multipart/form-data; boundary=b' },
+      payload: multipart('b', 'notes.txt', '纯文本内容'),
+    })
+    assert.equal(res.statusCode, 200)
+    assert.ok(existsSync(path.join(vault.kbRoot, 'raw', 'notes.txt')), '应落 raw/')
   } finally {
     await interaction.app.close()
     await fs.rm(vault.root, { recursive: true, force: true })

@@ -1,4 +1,4 @@
-import { ALLOWED_UPLOAD_EXTS } from '@z-wiki/server/uploadExts'
+import { ACCEPTED_UPLOAD_EXTS } from '@z-wiki/server/uploadExts'
 import { mdToHtml, splitBlocks } from '@z-wiki/server/markdown'
 import remend from 'remend'
 import {
@@ -600,7 +600,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         <input
           ref={fileRef}
           type="file"
-          accept={ALLOWED_UPLOAD_EXTS.join(',')}
+          accept={ACCEPTED_UPLOAD_EXTS.join(',')}
           onChange={handleFile}
           style={{ display: 'none' }}
         />

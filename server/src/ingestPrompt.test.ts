@@ -20,6 +20,16 @@ test('buildIngestPrompt: 大写 .MD 后缀 -> 仍按 md 处理(ext 小写化)', 
   assert.ok(!p.includes('pandoc'))
 })
 
+// ── 纯文本文件(.txt/.text/.log):走 read,不指示 pandoc(ADR-0018)──────────
+
+test('buildIngestPrompt: 纯文本后缀 -> readHint 指示 read,不含 pandoc', () => {
+  for (const ext of ['.txt', '.text', '.log']) {
+    const p = buildIngestPrompt(`notes${ext}`)
+    assert.ok(p.includes(`1. 读取 raw/notes${ext} 内容`), `${ext} 应指示 read`)
+    assert.ok(!p.includes('pandoc'), `${ext} 不应指示 pandoc`)
+  }
+})
+
 // ── 非 md 文件:走 pandoc ─────────────────────────────────────────
 
 test('buildIngestPrompt: 非 md 文件 -> readHint 指示 pandoc 工具', () => {

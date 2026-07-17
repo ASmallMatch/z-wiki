@@ -5,19 +5,20 @@
 // 不是 layer1 契约 -- 真正的 layer1 编译契约是 §1 编译规则(定义在 KB_SYSTEM_PROMPT,经 resourceLoader
 // 注入 system prompt,ingest/query 都用)。此处仅按 rawName 后缀选读法 + 给 6 步流程指引引用 §1。
 import path from 'node:path'
+import { PLAINTEXT_EXTS } from './uploadExts.js'
 
 /**
  * 构造 ingest 触发 prompt。
  *
- * 按 `rawName` 后缀选读法:精确 `.md` -> 指示 read;其余(含无后缀、.markdown)-> 指示 pandoc 工具转文本。
+ * 按 `rawName` 后缀选读法:md 或纯文本(.txt/.text/.log)-> 指示 read;其余(含无后缀、.markdown)-> 指示 pandoc 工具转文本。
  * rawName 由上传端点 sanitize 成 safeName(basename + 字符类清洗),此处不再校验,纯字符串构造。
  */
 export function buildIngestPrompt(rawName: string): string {
   const ext = path.extname(rawName).toLowerCase()
-  const readHint =
-    ext === '.md'
-      ? `1. 读取 raw/${rawName} 内容`
-      : `1. raw/${rawName} 是非 md 文件,用 pandoc 工具转文本读取:pandoc({ filePath: "raw/${rawName}" })`
+  const isPlain = ext === '.md' || PLAINTEXT_EXTS.includes(ext)
+  const readHint = isPlain
+    ? `1. 读取 raw/${rawName} 内容`
+    : `1. raw/${rawName} 是非 md 文件,用 pandoc 工具转文本读取:pandoc({ filePath: "raw/${rawName}" })`
   return [
     `已上传文件 raw/${rawName}。请按 Ingest 工作流处理:`,
     readHint,
