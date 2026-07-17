@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "main": "dist/main.js",
-  "description": "基于 LLM agent 的个人知识库编译器(桌面形态)",
+  "description": "让知识长出来,变废为宝 -- 基于 LLM agent 的个人知识库编译器",
   "author": "Earendil Works",
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs",
