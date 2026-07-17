@@ -71,13 +71,25 @@ export function collectCodePatchEntries(unpackedResourcesDir: string): PatchEntr
   ]
 }
 
-/** 生成 latest.json 对象(code 档;app/full 档由 Ticket 05/06 补)。 */
-export function buildManifest(versions: Versions, codePackage: LatestPackage): LatestManifest {
+/** 应用包要打进 tar 的路径:整个 app/ + web/dist/(含 node_modules,跨平台)。 */
+export function collectAppBundleEntries(unpackedResourcesDir: string): PatchEntry[] {
+  return [
+    { src: path.join(unpackedResourcesDir, 'app'), dest: 'app' },
+    { src: path.join(unpackedResourcesDir, 'web', 'dist'), dest: 'web/dist' },
+  ]
+}
+
+/** 生成 latest.json 对象(code 档 + app 档;full 档由 Ticket 06 补)。 */
+export function buildManifest(
+  versions: Versions,
+  codePackage: LatestPackage,
+  appPackage?: LatestPackage,
+): LatestManifest {
   return {
     appVersion: versions.appVersion,
     depsVersion: versions.depsVersion,
     baselineVersion: versions.baselineVersion,
-    packages: { code: codePackage },
+    packages: { code: codePackage, app: appPackage },
   }
 }
 
@@ -148,20 +160,35 @@ function main(): void {
     lockHash,
   })
 
-  // 打代码包 tar.gz:从 unpacked resources 抽 4 处(-C resources 切基目录)
+  // 代码包:4 处项目代码(跨平台,~5M)
   const codeTarball = path.join(releaseDir, `z-wiki-code-${versions.appVersion}.tar.gz`)
-  const dests = collectCodePatchEntries(resourcesDir).map((e) => e.dest)
-  execSync(`tar -czf '${codeTarball}' -C '${resourcesDir}' ${dests.map((d) => `'${d}'`).join(' ')}`)
+  const codeDests = collectCodePatchEntries(resourcesDir).map((e) => e.dest)
+  execSync(
+    `tar -czf '${codeTarball}' -C '${resourcesDir}' ${codeDests.map((d) => `'${d}'`).join(' ')}`,
+  )
   const codePackage: LatestPackage = {
     url: `z-wiki-code-${versions.appVersion}.tar.gz`,
     sha512: sha512(codeTarball),
     size: statSync(codeTarball).size,
   }
 
-  const manifest = buildManifest(versions, codePackage)
+  // 应用包:整个 app/ + web/dist/(跨平台,~45M;depsVersion 变时下,整体替换 app/)
+  const appTarball = path.join(releaseDir, `z-wiki-app-${versions.appVersion}.tar.gz`)
+  const appDests = collectAppBundleEntries(resourcesDir).map((e) => e.dest)
+  execSync(
+    `tar -czf '${appTarball}' -C '${resourcesDir}' ${appDests.map((d) => `'${d}'`).join(' ')}`,
+  )
+  const appPackage: LatestPackage = {
+    url: `z-wiki-app-${versions.appVersion}.tar.gz`,
+    sha512: sha512(appTarball),
+    size: statSync(appTarball).size,
+  }
+
+  const manifest = buildManifest(versions, codePackage, appPackage)
   writeFileSync(path.join(releaseDir, 'latest.json'), JSON.stringify(manifest, null, 2), 'utf-8')
   process.stdout.write(
     `代码包: ${path.basename(codeTarball)} (${codePackage.size} bytes)\n` +
+      `应用包: ${path.basename(appTarball)} (${appPackage.size} bytes)\n` +
       `latest.json: ${path.join(releaseDir, 'latest.json')}\n`,
   )
 }

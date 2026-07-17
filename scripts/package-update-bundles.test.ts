@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildManifest,
+  collectAppBundleEntries,
   collectCodePatchEntries,
   computeVersions,
 } from './package-update-bundles.js'
@@ -67,7 +68,34 @@ test('buildManifest: 生成 latest.json 结构(三版本号 + code 条目)', () 
   assert.equal(manifest.packages.code?.url, 'https://release/z-wiki-code-0.2.0.tar.gz')
   assert.equal(manifest.packages.code?.sha512, 'abc')
   assert.equal(manifest.packages.code?.size, 5000000)
-  // app/full 档未定义(Ticket 05/06 补)
+  // 不传 appPackage -> app undefined
   assert.equal(manifest.packages.app, undefined)
   assert.equal(manifest.packages.full, undefined)
+})
+
+test('collectAppBundleEntries: 返回 app + web/dist', () => {
+  const res = '/fake/unpacked/resources'
+  const entries = collectAppBundleEntries(res)
+  assert.equal(entries.length, 2)
+  assert.deepEqual(entries.map((e) => e.dest).sort(), ['app', 'web/dist'])
+  for (const e of entries) {
+    assert.ok(e.src.startsWith(res), `${e.src} 应以 resources 开头`)
+  }
+})
+
+test('buildManifest: 含 app 条目(传 appPackage)', () => {
+  const manifest = buildManifest(
+    {
+      appVersion: '0.2.0',
+      depsVersion: 'a1b2c3d4e5f6',
+      baselineVersion: 'e38.8.6_p3.10_r14.1.1_f10.1.0',
+    },
+    { url: 'code-url', sha512: 'code-sha', size: 5000000 },
+    { url: 'app-url', sha512: 'app-sha', size: 45000000 },
+  )
+  assert.equal(manifest.packages.code?.url, 'code-url')
+  assert.equal(manifest.packages.app?.url, 'app-url')
+  assert.equal(manifest.packages.app?.sha512, 'app-sha')
+  assert.equal(manifest.packages.app?.size, 45000000)
+  assert.equal(manifest.packages.full, undefined) // full 档 Ticket 06 补
 })

@@ -104,6 +104,9 @@ const CODE_PATCH_PATHS = [
   'app/package.json',
 ]
 
+/** 应用包覆盖的 2 处(整个 app/ + web/dist/;对应 collectAppBundleEntries)。 */
+const APP_BUNDLE_PATHS = ['app', 'web/dist']
+
 /** fetch 远程 latest.json。 */
 export async function fetchLatestManifest(feedUrl: string): Promise<RemoteManifest> {
   const res = await fetch(feedUrl)
@@ -149,9 +152,33 @@ export async function applyCodePatch(tarballPath: string, resourcesDir: string):
   }
 }
 
-/** 启动时清理上次代码包更新留下的 .old。 */
+/**
+ * 应用应用包:解压 tar.gz -> 原子替换 app/ + web/dist/(旧 -> .old,新 -> 目标)。
+ * 整体替换 app/ 含 node_modules,不用处理内部增删改。.old 留重启后清。
+ */
+export async function applyAppBundle(tarballPath: string, resourcesDir: string): Promise<void> {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-app-'))
+  try {
+    await execFileAsync('tar', ['-xzf', tarballPath, '-C', tmpDir])
+    for (const rel of APP_BUNDLE_PATHS) {
+      const target = path.join(resourcesDir, rel)
+      const extracted = path.join(tmpDir, rel)
+      if (!existsSync(extracted)) throw new Error(`应用包缺失:${rel}`)
+      const old = `${target}.old`
+      if (existsSync(target)) {
+        await fs.rm(old, { recursive: true, force: true })
+        await fs.rename(target, old)
+      }
+      await fs.rename(extracted, target)
+    }
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  }
+}
+
+/** 启动时清理上次更新留下的 .old(代码包 4 处 + 应用包 app/)。 */
 export async function cleanupOldPatches(resourcesDir: string): Promise<void> {
-  for (const rel of CODE_PATCH_PATHS) {
+  for (const rel of [...CODE_PATCH_PATHS, ...APP_BUNDLE_PATHS]) {
     const old = path.join(resourcesDir, `${rel}.old`)
     if (existsSync(old)) await fs.rm(old, { recursive: true, force: true })
   }
@@ -182,10 +209,11 @@ export async function checkForUpdate(opts: {
   const remote = await fetchLatestManifest(opts.feedUrl)
   const plan = selectUpdatePackage(local, remote)
   if (plan.action === 'none') return { action: 'none', message: '已是最新' }
-  if (plan.action !== 'code') {
-    return { action: plan.action, message: `${plan.action} 档需下完整包(首版不自动处理)` }
+  // full 档(基线升级)留 Ticket 06,首版降级提示下完整包。
+  if (plan.action === 'full') {
+    return { action: 'full', message: 'full 档需下完整包(首版不自动处理)' }
   }
-  if (!plan.package) throw new Error('code 包缺失于 latest.json')
+  if (!plan.package) throw new Error(`${plan.action} 包缺失于 latest.json`)
 
   // latest.json 的 url 可能是相对文件名(02 脚本生成),基于 feedUrl 解析成绝对。
   const absUrl = new URL(plan.package.url, opts.feedUrl).toString()
@@ -195,12 +223,16 @@ export async function checkForUpdate(opts: {
     await fs.rm(dest, { force: true })
     throw new Error('sha512 校验失败')
   }
-  await applyCodePatch(dest, opts.resourcesDir)
+  if (plan.action === 'code') {
+    await applyCodePatch(dest, opts.resourcesDir)
+  } else {
+    await applyAppBundle(dest, opts.resourcesDir)
+  }
   await writeUpdateState(opts.statePath, {
     appVersion: remote.appVersion,
     depsVersion: remote.depsVersion,
     baselineVersion: remote.baselineVersion,
     platform: opts.platform,
   })
-  return { action: 'applied', message: '代码包已应用,重启生效' }
+  return { action: 'applied', message: `${plan.action} 包已应用,重启生效` }
 }
