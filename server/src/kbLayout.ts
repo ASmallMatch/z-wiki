@@ -47,6 +47,16 @@ export function isRawPath(absPath: string, kbRoot: string): boolean {
 }
 
 /**
+ * 判断绝对路径是否在 kb/ 内(含 raw/,读工具边界,ADR-0016)。
+ * 读工具(read/grep/find/ls/pandoc)允许读 raw/(ingest 刚需),只判 kb/ 内外,不排除 raw/。
+ * 与 isWritablePath 对称,只差不排除 raw/(写边界排除 raw/)。
+ */
+export function isWithinKb(absPath: string, kbRoot: string): boolean {
+  const rel = path.relative(kbRoot, absPath)
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
+}
+
+/**
  * 判断绝对路径是否在 layer1 可写区(wiki/output/index.md/log.md)。
  * raw/ 下只读,返回 false;kb/ 外(如 server/web)非 layer1,返回 false。
  */

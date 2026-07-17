@@ -17,6 +17,7 @@ import { KB_SYSTEM_PROMPT, KB_OUTPUT_LANG_PROMPT, KB_MD_RULES } from './prompt.j
 import { thinkingPromptFactory } from './thinkingPrompt.js'
 import { runHealthCheck, type HealthReport } from './healthCheck.js'
 import { kbHooksFactory } from './kbHooks.js'
+import { isWithinKb } from './kbLayout.js'
 import {
   PROVIDER_KEY,
   readConfig,
@@ -57,6 +58,18 @@ function makePandocTool(kbRoot: string, agentDir: string) {
       from: Type.Optional(Type.String({ description: '输入格式(如 docx),省略则按后缀推断' })),
     }),
     async execute(_toolCallId, params) {
+      // 路径沙箱(ADR-0016):pandoc 是 customTool,不经 kbHooks,在 execute 内拦。
+      // filePath 锁 kb/ 内(含 raw/,pandoc 主要读 raw/ 非 md)。越界返回错误文本,不 spawn。
+      const abs = path.resolve(kbRoot, params.filePath)
+      if (!isWithinKb(abs, kbRoot)) {
+        const content: TextContent[] = [
+          {
+            type: 'text',
+            text: `路径 ${abs} 在当前知识库目录(kb/)之外。pandoc 仅限转换当前知识库内文件,请用相对 cwd 的路径(如 "raw/x.docx")。`,
+          },
+        ]
+        return { content, details: undefined }
+      }
       const args = params.from
         ? ['--from', params.from, params.filePath, '-t', 'markdown']
         : [params.filePath, '-t', 'markdown']

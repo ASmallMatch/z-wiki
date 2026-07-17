@@ -6,7 +6,7 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { ExtensionFactory } from '@earendil-works/pi-coding-agent'
-import { SUBSEAM_DIRS, isRawPath } from './kbLayout.js'
+import { SUBSEAM_DIRS, isRawPath, isWithinKb, isWritablePath } from './kbLayout.js'
 import { ALLOWED_UPLOAD_EXTS } from './uploadExts.js'
 
 // 命中以下任一关键词则视为用户主动要求外部知识,不注入引导
@@ -31,11 +31,46 @@ function detectKbChanges(cwd: string): string | null {
   }
 }
 
-/** 写操作的目标路径落入 raw/ 则拦截(ADR-0002 决策 2)。cwd 即 kb/ 根(agent cwd = kbRoot)。 */
-function isWriteToRaw(filePath: string, cwd: string): boolean {
-  if (!filePath) return false
-  const abs = path.isAbsolute(filePath) ? filePath : path.resolve(cwd, filePath)
-  return isRawPath(abs, cwd)
+/**
+ * 读工具(read/grep/find/ls)路径越界检查(ADR-0016):解析 agent 传入路径,落在 kb/ 外 -> block。
+ * 读边界含 raw/(ingest 要读 raw/),用 isWithinKb。空/缺失放行(默认 cwd=kb/,安全)。纯函数,便于单测。
+ */
+export function shouldBlockReadPath(
+  filePath: string | undefined,
+  cwd: string,
+): { reason: string } | null {
+  if (!filePath) return null
+  const abs = path.resolve(cwd, filePath)
+  if (!isWithinKb(abs, cwd)) {
+    return {
+      reason: `路径 ${abs} 在当前知识库目录(kb/)之外。工具仅限操作当前知识库,请用相对 cwd 的路径(如 "wiki/01-x.md")。`,
+    }
+  }
+  return null
+}
+
+/**
+ * 写工具(write/edit)路径越界检查(ADR-0016):raw/ -> block(只读源,ADR-0002 决策 2);
+ * kb/ 外 -> block(越界)。空/缺失放行(默认 cwd=kb/,安全)。纯函数,便于单测。
+ */
+export function shouldBlockWritePath(
+  filePath: string | undefined,
+  cwd: string,
+): { reason: string } | null {
+  if (!filePath) return null
+  const abs = path.resolve(cwd, filePath)
+  if (isRawPath(abs, cwd)) {
+    return {
+      reason:
+        'raw/ 是只读源(raw/ is read-only Source)。原始来源不可修改;如需修订内容,请写到 wiki/ 或 output/。',
+    }
+  }
+  if (!isWritablePath(abs, cwd)) {
+    return {
+      reason: `路径 ${abs} 在当前知识库目录(kb/)之外。工具仅限操作当前知识库,请用相对 cwd 的路径(如 "wiki/01-x.md")。`,
+    }
+  }
+  return null
 }
 
 /**
@@ -84,22 +119,32 @@ export const kbHooksFactory: ExtensionFactory = (pi) => {
     }
   })
 
-  // tool_call 事件:拦 read 对非 md(ADR-0011,提示用 pandoc 工具)+ write/edit 对 raw/ 的写(raw/ 只读,ADR-0002 决策 2)
+  // tool_call 事件(ADR-0011 + ADR-0016):
+  // - read:非 md 后缀 block(提示 pandoc)+ 路径越界 block
+  // - grep/find/ls:路径越界 block(读边界=kb/ 内含 raw/)
+  // - write/edit:raw/ 写 block(只读源)+ 路径越界 block(写边界=kb/ 内非 raw/)
   pi.on('tool_call', async (event, ctx) => {
-    if (event.toolName === 'read') {
+    const { toolName } = event
+
+    if (toolName === 'read') {
       const input = event.input as { file_path?: string; path?: string }
       const filePath = input.file_path ?? input.path ?? ''
-      const block = shouldBlockRead(filePath)
+      const pathBlock = shouldBlockReadPath(filePath, ctx.cwd)
+      if (pathBlock) return { block: true, reason: pathBlock.reason }
+      const suffixBlock = shouldBlockRead(filePath)
+      if (suffixBlock) return { block: true, reason: suffixBlock.reason }
+    }
+
+    if (toolName === 'grep' || toolName === 'find' || toolName === 'ls') {
+      const filePath = (event.input as { path?: string }).path
+      const block = shouldBlockReadPath(filePath, ctx.cwd)
       if (block) return { block: true, reason: block.reason }
     }
-    if (event.toolName !== 'write' && event.toolName !== 'edit') return
-    const filePath = (event.input as { file_path?: string }).file_path
-    if (filePath && isWriteToRaw(filePath, ctx.cwd)) {
-      return {
-        block: true,
-        reason:
-          'raw/ 是只读源(raw/ is read-only Source)。原始来源不可修改;如需修订内容,请写到 wiki/ 或 output/。',
-      }
+
+    if (toolName === 'write' || toolName === 'edit') {
+      const filePath = (event.input as { file_path?: string }).file_path
+      const block = shouldBlockWritePath(filePath, ctx.cwd)
+      if (block) return { block: true, reason: block.reason }
     }
   })
 }

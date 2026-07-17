@@ -22,6 +22,7 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 - `docs/adr/0013-draft-archivist-room-repalette.md` —— Draft 主题改「档案室」配色(泛黄纸 + 蓝黑墨水);supersedes ADR-0006 D1'/D3'。
 - `docs/adr/0014-css-regional-split.md` —— web CSS 按区域拆分(删 `global.css` 3682 行 -> 7 文件),纯 locality 重组。
 - `docs/adr/0015-book-shelf-phantom-slot.md` -- N=1,2 补虚拟位凑奇数 slots(N≥3 不变),保留 slot0 体系 + currentSlot 量化真书槽集;删单本路径。
+- `docs/adr/0016-tool-path-sandbox-kb.md` -- agent 文件工具路径沙箱(锁 kb/ 内):read/grep/find/ls/pandoc 读边界 `isWithinKb`(含 raw/),write/edit 写边界 `isWritablePath`(非 raw/);内置走 kbHooks,pandoc 走 execute;不处理 symlink。
 
 三层物理边界不动:`kb/`(layer1 数据)/ `web/`(layer2 SPA)/ `server/`(layer3 Fastify+pi agent)各自独立,不互写文件系统。桌面化是在三层之外加 `desktop/` shell,不穿透。
 
@@ -48,6 +49,7 @@ make build        # 构建前端 + 后端产物
 - **`config.json` 是单一真相源**(ADR-0003 D3.1 + ADR-0004):含 `apiKey`/`baseUrl`/`api`/`model`/`contextWindow`/`vaults`/`currentVault`/`shellPath`/`thinkingLevel`(无 `provider`,已删)。dev 形态放项目根(从 `config.example.json` 复制起步),桌面形态放 UserDataDir。`buildAgentContext` 从 appRoot(= agentDir 上两级)读它,启动生成 `.pi/agent/models.json`(派生产物),apiKey 经 `setRuntimeApiKey` 运行时注入——**`auth.json` 不落盘**。不再读 `.env`。
 - **`raw/` 只读是双层防御**:prompt 引导(第一道)+ `kbHooks` 的 tool_call 拦截(兜底):write/edit 拦 raw 写,read 拦非 md(提示用 pandoc 工具,ADR-0011)。
 - **pi agent 工具集不含 bash**(ADR-0003 D6 基线,ADR-0011 移除 bash):`tools: ["read","edit","write","grep","find","ls","pandoc"]`。非 md 源经 `pandoc` customTool(`makePandocTool`,spawn argv 不经 shell,无注入面)按需转文本;agent 不是通用 shell。
+- **文件工具路径锁 kb/ 内**(ADR-0016):pi 的 `resolveToCwd`->`resolvePath` 不 sandbox(接受绝对路径与 `../` 逃逸),agent 传 kb/ 外路径能跨目录读写。由 kbHooks `tool_call` 拦截(read/grep/find/ls 用 `isWithinKb` 读边界含 raw/;write/edit 用 `isWritablePath` 写边界非 raw/),pandoc 是 customTool 不经钩子,在 `makePandocTool.execute` 内拦。symlink 不处理(agent 无 bash 不能 `ln -s`)。
 
 ## 代码风格
 
