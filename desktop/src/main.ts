@@ -12,6 +12,7 @@ import { resolveDesktopPaths } from './paths.js'
 import { needsWindowsGpuSandboxFallback } from './pathUtils.js'
 import { ensureFirstRun } from './firstRun.js'
 import { ensureToolBins } from './toolBins.js'
+import { checkForUpdate, cleanupOldPatches } from './updater.js'
 import { buildContextMenuTemplate } from './contextMenu.js'
 import { loadWindowBounds, saveWindowBounds } from './windowState.js'
 
@@ -60,6 +61,12 @@ async function bootstrap(): Promise<void> {
   ensureFirstRun(paths)
   // 铺放 rg/fd 到 pi 的 getBinDir()(D8),版本不一致才重铺。
   ensureToolBins(paths)
+  // 清理上次代码包更新留下的 .old(ADR-0018 Ticket 04)
+  if (app.isPackaged) {
+    void cleanupOldPatches(process.resourcesPath).catch((err) =>
+      console.error('cleanup old patches failed:', err),
+    )
+  }
 
   // 打开 vault 目录(系统文件管理器):前端经 window.desktop.openVault → IPC → shell.openPath。
   // 只读,不改 fs/config。成功返回空串,失败返回错误字符串,前端回显。
@@ -146,6 +153,39 @@ async function bootstrap(): Promise<void> {
     void shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  // 后台检查更新(仅 prod + 配了 ZWIKI_UPDATE_FEED;不阻塞 bootstrap,ADR-0018 Ticket 04)。
+  // code 档自动下载覆盖 -> 提示重启;app/full 档降级提示下完整包。
+  if (app.isPackaged && process.env.ZWIKI_UPDATE_FEED) {
+    void checkForUpdate({
+      feedUrl: process.env.ZWIKI_UPDATE_FEED,
+      statePath: path.join(paths.userDataDir, '.update-state.json'),
+      cacheDir: path.join(paths.userDataDir, 'update-cache'),
+      resourcesDir: process.resourcesPath,
+      platform: process.platform,
+    })
+      .then((result) => {
+        if (result.action === 'applied' && mainWindow && !mainWindow.isDestroyed()) {
+          void dialog
+            .showMessageBox(mainWindow, {
+              type: 'info',
+              title: '更新就绪',
+              message: '新版本已下载',
+              detail: '重启 z-wiki 以完成更新。',
+              buttons: ['重启', '稍后'],
+            })
+            .then(({ response }) => {
+              if (response === 0) {
+                app.relaunch()
+                app.exit(0)
+              }
+            })
+        } else if (interaction) {
+          interaction.log.info({ result }, 'update check')
+        }
+      })
+      .catch((err) => interaction?.log.warn({ err }, 'update check failed'))
+  }
 
   // 关窗口按钮路径:close 事件时窗口仍存活,此处持久化(验收:重启后保留)。
   mainWindow.on('close', () => persistWindowBounds())
