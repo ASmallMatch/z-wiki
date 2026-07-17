@@ -41,17 +41,18 @@ function cacheHitRate(t: TurnStats): number {
   return Math.round((t.cacheRead / denom) * 100)
 }
 
-/** ingest 角标阶段标签:uploading/compiling/done/failed -> 上传中/编译中/已更新/失败。 */
+/** ingest 角标阶段标签(垃圾桶主题:raw=垃圾,wiki/output=知识,ingest=吃垃圾->转化):
+ *  uploading/compiling/done/failed -> 投喂中/消化中/已消化/消化不良。 */
 function labelForIngest(phase: IngestPhase): string {
   switch (phase) {
     case 'uploading':
-      return '上传中'
+      return '投喂中'
     case 'compiling':
-      return '编译中'
+      return '消化中'
     case 'done':
-      return '已更新'
+      return '已消化'
     case 'failed':
-      return '失败'
+      return '消化不良'
   }
 }
 

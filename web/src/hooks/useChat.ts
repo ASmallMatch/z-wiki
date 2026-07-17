@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { emitIngestState, emitKbUpdated } from './chatEvents'
+import { nextAnchor } from '@z-wiki/server/ingestProgress'
 
 /** 助手回合内的时间线片段:文本段、工具调用段、思考段按到达顺序排列,保留时序。 */
 export type Segment =
@@ -62,11 +63,14 @@ export interface TurnStats {
 /** ingest 进度角标的阶段。覆盖上传(HTTP)+ 编译(agent 回合)全过程;空闲用 null 表示,不入此类型。 */
 export type IngestPhase = 'uploading' | 'compiling' | 'done' | 'failed'
 
-/** ingest 进度角标数据。null = 无角标(空闲)。fileName 进 title tooltip,percent 是假进度 0-100。 */
+/** ingest 进度角标数据。null = 无角标(空闲)。fileName 进 title tooltip;
+ *  percent 显示值(段式插值),anchor 当前真实里程碑,target 插值目标(下一锚点,ADR-0019)。 */
 export interface IngestProgress {
   phase: IngestPhase
   fileName: string
   percent: number
+  anchor: number
+  target: number
 }
 
 interface ServerMsg {
@@ -81,6 +85,7 @@ interface ServerMsg {
     | 'ingest_started'
     | 'ingest_done'
     | 'ingest_error'
+    | 'ingest_progress'
     | 'vault_changed'
     | 'session_init'
     | 'thinking_changed'
@@ -94,6 +99,7 @@ interface ServerMsg {
   changed?: number
   total?: number
   raw?: string
+  percent?: number
   vault?: { path: string; name: string }
   model?: ModelInfo
   stats?: SessionStatsPayload
@@ -464,6 +470,14 @@ export function useChat() {
           // ingest 开始:通知设置页禁用切库按钮(D5)
           emitIngestState({ active: true })
           break
+        case 'ingest_progress':
+          // 里程碑锚点(ADR-0019):更新当前锚点 + 插值目标(下一锚点)。仅 compiling 阶段生效。
+          setIngest((prev) => {
+            if (!prev || prev.phase !== 'compiling') return prev
+            const anchor = msg.percent ?? prev.anchor
+            return { ...prev, anchor, target: nextAnchor(anchor) }
+          })
+          break
         case 'ingest_done':
           emitIngestState({ active: false })
           setIngest((prev) => (prev ? { ...prev, phase: 'done', percent: 100 } : prev))
@@ -523,19 +537,27 @@ export function useChat() {
     }
   }, [connect])
 
-  // ingest 假进度:compiling 阶段 setInterval 100ms,easeOutCubic 20s 爬到 90% 后保持。
-  // 为什么假进度:HTTP 上传快且 fetch 无进度事件;ingest 是 LLM 回合无真实百分比;
-  // easeOutCubic 到 90% 封顶避免"卡 99%"焦虑,ingest_done 跳 100%、ingest_error 保持当前值变红。
+  // ingest 进度:compiling 阶段从 anchor 向 target 段式 easeOutCubic 插值(8s/段,不超 target)。
+  // 里程碑锚点由 server ingest_progress 驱动(ADR-0019),锚点间时间插值填充 LLM 思考耗时。
+  // target=下一锚点;到达后停(等真实锚点推进),ingest_done 跳 100%、ingest_error 保持当前值变红。
   useEffect(() => {
     if (ingest?.phase !== 'compiling') return
+    const from = ingest.anchor
+    const to = ingest.target
+    if (to <= from) return
     const start = performance.now()
+    const SEGMENT_MS = 8000
     const id = setInterval(() => {
-      const elapsed = (performance.now() - start) / 1000
-      const pct = 90 * (1 - (1 - Math.min(1, elapsed / 20)) ** 3)
-      setIngest((prev) => (prev && prev.phase === 'compiling' ? { ...prev, percent: pct } : prev))
+      const t = Math.min(1, (performance.now() - start) / SEGMENT_MS)
+      const pct = from + (to - from) * (1 - (1 - t) ** 3)
+      setIngest((prev) =>
+        prev && prev.phase === 'compiling' && prev.anchor === from && prev.target === to
+          ? { ...prev, percent: pct }
+          : prev,
+      )
     }, 100)
     return () => clearInterval(id)
-  }, [ingest?.phase])
+  }, [ingest?.phase, ingest?.anchor, ingest?.target])
 
   // 角标淡出:done 1.5s / failed 3s 后清空(结果消息已留消息流,角标只是即时反馈)。
   useEffect(() => {
@@ -566,7 +588,7 @@ export function useChat() {
   const upload = useCallback(async (file: File) => {
     if (!file) return
     // 角标承担过程反馈,不再推"上传中/已上传编译中"system 消息;结果(已更新/失败)仍留消息流。
-    setIngest({ phase: 'uploading', fileName: file.name, percent: 0 })
+    setIngest({ phase: 'uploading', fileName: file.name, percent: 0, anchor: 0, target: 0 })
     const form = new FormData()
     form.append('file', file)
     try {
@@ -584,8 +606,11 @@ export function useChat() {
           },
         ])
       } else {
-        // fetch 返回 ok -> 进入编译阶段,假进度开始爬升;ingest_started 信号不参与角标(已由 fetch 返回驱动)
-        setIngest((prev) => (prev ? { ...prev, phase: 'compiling' } : prev))
+        // fetch 返回 ok -> 进入编译阶段,锚点 0、目标第一锚点(nextAnchor(0)=15),段式插值开始;
+        // ingest_started 信号不参与角标(已由 fetch 返回驱动)
+        setIngest((prev) =>
+          prev ? { ...prev, phase: 'compiling', anchor: 0, target: nextAnchor(0) } : prev,
+        )
       }
     } catch (err) {
       setIngest((prev) => (prev ? { ...prev, phase: 'failed' } : prev))

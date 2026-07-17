@@ -19,6 +19,10 @@
       "types": "./src/markdown.ts",
       "node": "./dist/markdown.js",
       "default": "./src/markdown.ts"
+    },
+    "./ingestProgress": {
+      "types": "./src/ingestProgress.ts",
+      "default": "./src/ingestProgress.ts"
     }
   },
   "scripts": {

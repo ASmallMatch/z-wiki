@@ -39,6 +39,7 @@ import { buildIngestPrompt } from './ingestPrompt.js'
 import { rawDir } from './kbLayout.js'
 import { relayEvent, type RelayCtx } from './relayEvent.js'
 import { checkUploadExt } from './uploadExts.js'
+import { classifyMilestone } from './ingestProgress.js'
 import { slugify, vaultDisplayName } from './vaultLayout.js'
 
 export interface Interaction {
@@ -221,10 +222,18 @@ export async function createInteraction(
     broadcast({ type: 'ingest_started' })
     log.info('ingest started')
 
+    let ingestPercent = 0
     const session = await createIngestSession({
       ctx: agentCtx,
       kbRoot: currentKbRoot,
-      onEvent: () => {},
+      onEvent: (event) => {
+        // 里程碑锚点进度(ADR-0019):命中且推进 -> broadcast ingest_progress。100% 由 ingest_done 承担。
+        const milestone = classifyMilestone(event)
+        if (milestone !== null && milestone > ingestPercent) {
+          ingestPercent = milestone
+          broadcast({ type: 'ingest_progress', percent: milestone })
+        }
+      },
     })
     ingestSessions.add(session)
 
