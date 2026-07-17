@@ -79,18 +79,47 @@ export function collectAppBundleEntries(unpackedResourcesDir: string): PatchEntr
   ]
 }
 
-/** 生成 latest.json 对象(code 档 + app 档;full 档由 Ticket 06 补)。 */
+/** 生成 latest.json 对象(code 档 + app 档 + full 档按平台 map)。 */
 export function buildManifest(
   versions: Versions,
   codePackage: LatestPackage,
   appPackage?: LatestPackage,
+  fullPackages?: Record<string, LatestPackage>,
 ): LatestManifest {
   return {
     appVersion: versions.appVersion,
     depsVersion: versions.depsVersion,
     baselineVersion: versions.baselineVersion,
-    packages: { code: codePackage, app: appPackage },
+    packages: { code: codePackage, app: appPackage, full: fullPackages },
   }
+}
+
+/** 完整包命名(ADR-0018 D4):z-wiki-{version}-{os}-{arch}.{dmg|exe|AppImage}。zip 便携不进自动更新(PRD Out of Scope)。 */
+const FULL_PACKAGE_RE = /^z-wiki-(.+)-(mac|win|linux)-(x64|arm64)\.(dmg|exe|AppImage)$/
+
+/**
+ * 扫 releaseDir 收当前版本的完整包 -> full map(键 mac-arm64/win-x64/linux-x64,对应
+ * updater.ts 的 fullPackageKey)。只收 version 匹配的新命名文件:旧命名(z-wiki-0.1.0.dmg)、
+ * zip 便携、blockmap、其他版本自动排除。
+ */
+export function collectFullPackages(
+  releaseDir: string,
+  version: string,
+): Record<string, LatestPackage> {
+  const packages: Record<string, LatestPackage> = {}
+  if (!existsSync(releaseDir)) return packages
+  for (const file of readdirSync(releaseDir)) {
+    const m = FULL_PACKAGE_RE.exec(file)
+    if (!m || m[1] !== version) continue
+    const filePath = path.join(releaseDir, file)
+    if (!statSync(filePath).isFile()) continue
+    packages[`${m[2]}-${m[3]}`] = {
+      url: file,
+      sha512: sha512(filePath),
+      size: statSync(filePath).size,
+    }
+  }
+  return packages
 }
 
 // ===== IO 主流程(make package 调,不单测) =====
@@ -184,11 +213,13 @@ function main(): void {
     size: statSync(appTarball).size,
   }
 
-  const manifest = buildManifest(versions, codePackage, appPackage)
+  const fullPackages = collectFullPackages(releaseDir, versions.appVersion)
+  const manifest = buildManifest(versions, codePackage, appPackage, fullPackages)
   writeFileSync(path.join(releaseDir, 'latest.json'), JSON.stringify(manifest, null, 2), 'utf-8')
   process.stdout.write(
     `代码包: ${path.basename(codeTarball)} (${codePackage.size} bytes)\n` +
       `应用包: ${path.basename(appTarball)} (${appPackage.size} bytes)\n` +
+      `完整包: ${Object.keys(fullPackages).sort().join(', ') || '(无)'}\n` +
       `latest.json: ${path.join(releaseDir, 'latest.json')}\n`,
   )
 }

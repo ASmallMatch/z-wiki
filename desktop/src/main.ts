@@ -2,6 +2,7 @@
 // 切片 04:路径切到 UserDataDir(ADR-0003 D3),首次启动从 bundle 复制 kb_example + 铺放 rg/fd(D4/D8)。
 // 依赖方向单向(D9):只 import createServer,不深入 server 内部模块。
 import './env.js' // 副作用:必须在 pi SDK import 前设 PI_CODING_AGENT_DIR + PI_OFFLINE(见 env.ts 注释)
+import './applyPendingBoot.js' // 副作用:win 待应用更新在 server import 链前替换(见 applyPendingBoot.ts 注释)
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -61,7 +62,7 @@ async function bootstrap(): Promise<void> {
   ensureFirstRun(paths)
   // 铺放 rg/fd 到 pi 的 getBinDir()(D8),版本不一致才重铺。
   ensureToolBins(paths)
-  // 清理上次代码包更新留下的 .old(ADR-0018 Ticket 04)
+  // 清理上次更新留下的 .old(代码包/应用包/staging 替换;ADR-0018)
   if (app.isPackaged) {
     void cleanupOldPatches(process.resourcesPath).catch((err) =>
       console.error('cleanup old patches failed:', err),
@@ -154,18 +155,24 @@ async function bootstrap(): Promise<void> {
     return { action: 'deny' }
   })
 
-  // 后台检查更新(仅 prod + 配了 ZWIKI_UPDATE_FEED;不阻塞 bootstrap,ADR-0018 Ticket 04)。
-  // code 档自动下载覆盖 -> 提示重启;app/full 档降级提示下完整包。
+  // 后台检查更新(仅 prod + 配了 ZWIKI_UPDATE_FEED;不阻塞 bootstrap,ADR-0018 Ticket 04/06)。
+  // code/app 档自动下载应用 -> 提示重启;full 档 mac/win 提示下完整包重装(linux 自动替换 AppImage)。
   if (app.isPackaged && process.env.ZWIKI_UPDATE_FEED) {
     void checkForUpdate({
       feedUrl: process.env.ZWIKI_UPDATE_FEED,
       statePath: path.join(paths.userDataDir, '.update-state.json'),
       cacheDir: path.join(paths.userDataDir, 'update-cache'),
+      stagingDir: path.join(paths.userDataDir, 'update-staging'),
       resourcesDir: process.resourcesPath,
       platform: process.platform,
+      arch: process.arch,
     })
       .then((result) => {
-        if (result.action === 'applied' && mainWindow && !mainWindow.isDestroyed()) {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          interaction?.log.info({ result }, 'update check')
+          return
+        }
+        if (result.action === 'applied') {
           void dialog
             .showMessageBox(mainWindow, {
               type: 'info',
@@ -180,8 +187,22 @@ async function bootstrap(): Promise<void> {
                 app.exit(0)
               }
             })
-        } else if (interaction) {
-          interaction.log.info({ result }, 'update check')
+        } else if (result.action === 'full') {
+          void dialog
+            .showMessageBox(mainWindow, {
+              type: 'info',
+              title: '需要重新安装',
+              message: '基线层升级',
+              detail: result.downloadUrl
+                ? `${result.message}\n\n点"去下载"获取新完整包,安装后覆盖旧版即可。`
+                : result.message,
+              buttons: result.downloadUrl ? ['去下载', '稍后'] : ['知道了'],
+            })
+            .then(({ response }) => {
+              if (response === 0 && result.downloadUrl) void shell.openExternal(result.downloadUrl)
+            })
+        } else {
+          interaction?.log.info({ result }, 'update check')
         }
       })
       .catch((err) => interaction?.log.warn({ err }, 'update check failed'))

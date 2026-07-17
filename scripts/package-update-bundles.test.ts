@@ -1,12 +1,17 @@
 // package-update-bundles.test.ts - 打包纯函数测试(ADR-0018 D2/D3,Seam 2)。
-// 测 computeVersions / collectCodePatchEntries / buildManifest 纯函数;
+// 测 computeVersions / collectCodePatchEntries / collectFullPackages / buildManifest 纯函数;
 // main(IO:tar/sha512/读 package.json)不测,靠 make package 手动验证。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {
   buildManifest,
   collectAppBundleEntries,
   collectCodePatchEntries,
+  collectFullPackages,
   computeVersions,
 } from './package-update-bundles.js'
 
@@ -97,5 +102,63 @@ test('buildManifest: 含 app 条目(传 appPackage)', () => {
   assert.equal(manifest.packages.app?.url, 'app-url')
   assert.equal(manifest.packages.app?.sha512, 'app-sha')
   assert.equal(manifest.packages.app?.size, 45000000)
-  assert.equal(manifest.packages.full, undefined) // full 档 Ticket 06 补
+  assert.equal(manifest.packages.full, undefined)
+})
+
+test('buildManifest: 含 full 按平台 map(传 fullPackages)', () => {
+  const full = {
+    'mac-arm64': { url: 'z-wiki-0.2.0-mac-arm64.dmg', sha512: 'mac-sha', size: 210000000 },
+    'win-x64': { url: 'z-wiki-0.2.0-win-x64.exe', sha512: 'win-sha', size: 200000000 },
+  }
+  const manifest = buildManifest(
+    {
+      appVersion: '0.2.0',
+      depsVersion: 'a1b2c3d4e5f6',
+      baselineVersion: 'e38.8.6_p3.10_r14.1.1_f10.1.0',
+    },
+    { url: 'code-url', sha512: 'code-sha', size: 5000000 },
+    { url: 'app-url', sha512: 'app-sha', size: 45000000 },
+    full,
+  )
+  assert.deepEqual(manifest.packages.full, full)
+})
+
+test('collectFullPackages: 按命名收当前版本完整包,排 zip/blockmap/旧命名/旧版本', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'zwiki-release-'))
+  try {
+    // 应收的(当前版本 0.2.0,新命名,dmg/exe/AppImage)
+    const keep = [
+      'z-wiki-0.2.0-mac-arm64.dmg',
+      'z-wiki-0.2.0-mac-x64.dmg',
+      'z-wiki-0.2.0-win-x64.exe',
+      'z-wiki-0.2.0-linux-x64.AppImage',
+    ]
+    // 应排的:zip 便携 / blockmap / 旧版本 / 旧命名(无 os 段/异前缀)/ 同名目录
+    const drop = [
+      'z-wiki-0.2.0-win-x64.zip',
+      'z-wiki-0.2.0-mac-arm64.dmg.blockmap',
+      'z-wiki-0.1.0-mac-arm64.dmg',
+      'z-wiki-0.2.0-arm64.dmg',
+      'zwiki-setup-0.2.0.exe',
+    ]
+    for (const f of [...keep, ...drop]) {
+      await fs.writeFile(path.join(dir, f), `fake-${f}`)
+    }
+    await fs.mkdir(path.join(dir, 'z-wiki-0.2.0-linux-arm64.dmg')) // 目录不收
+
+    const packages = collectFullPackages(dir, '0.2.0')
+    assert.deepEqual(Object.keys(packages).sort(), ['linux-x64', 'mac-arm64', 'mac-x64', 'win-x64'])
+    // url = 相对文件名(与 code/app 包一致),sha512/size 与文件内容匹配
+    const dmg = packages['mac-arm64']
+    assert.equal(dmg.url, 'z-wiki-0.2.0-mac-arm64.dmg')
+    const content = await fs.readFile(path.join(dir, 'z-wiki-0.2.0-mac-arm64.dmg'))
+    assert.equal(dmg.sha512, createHash('sha512').update(content).digest('hex'))
+    assert.equal(dmg.size, content.length)
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('collectFullPackages: releaseDir 不存在 -> 空 map', () => {
+  assert.deepEqual(collectFullPackages('/no/such/dir', '0.2.0'), {})
 })
