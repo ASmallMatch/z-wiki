@@ -53,6 +53,12 @@ test('shouldBlockReadPath: kb/ 内放行(含 raw/)', () => {
   assert.equal(shouldBlockReadPath('index.md', KB), null)
 })
 
+test('shouldBlockReadPath: kb/ 根本身放行(ls . / grep .)', () => {
+  // rel='' 时 isWithinKb 须返回 true(kb/ 根算在内),不能照搬 isWritablePath 的 rel!=='' 排除
+  assert.equal(shouldBlockReadPath('.', KB), null)
+  assert.equal(shouldBlockReadPath('./wiki/01-foo.md', KB), null)
+})
+
 test('shouldBlockReadPath: kb/ 外绝对路径 block', () => {
   const r = shouldBlockReadPath('/etc/passwd', KB)
   assert.ok(r)

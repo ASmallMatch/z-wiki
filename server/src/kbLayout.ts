@@ -47,13 +47,14 @@ export function isRawPath(absPath: string, kbRoot: string): boolean {
 }
 
 /**
- * 判断绝对路径是否在 kb/ 内(含 raw/,读工具边界,ADR-0016)。
+ * 判断绝对路径是否在 kb/ 内(含 raw/ 与 kb/ 根,读工具边界,ADR-0016)。
  * 读工具(read/grep/find/ls/pandoc)允许读 raw/(ingest 刚需),只判 kb/ 内外,不排除 raw/。
- * 与 isWritablePath 对称,只差不排除 raw/(写边界排除 raw/)。
+ * 与 isWritablePath 的区别:不排除 raw/,且 kb/ 根本身算在内(rel='')--`ls .`/`grep .` 须放行,
+ * 不能像 isWritablePath 那样用 `rel !== ''` 排除目录本身(目录不是可写文件,但可作读搜索根)。
  */
 export function isWithinKb(absPath: string, kbRoot: string): boolean {
   const rel = path.relative(kbRoot, absPath)
-  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel)
+  return !rel.startsWith('..') && !path.isAbsolute(rel)
 }
 
 /**
