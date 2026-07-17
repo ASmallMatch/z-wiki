@@ -23,6 +23,7 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 - `docs/adr/0014-css-regional-split.md` —— web CSS 按区域拆分(删 `global.css` 3682 行 -> 7 文件),纯 locality 重组。
 - `docs/adr/0015-book-shelf-phantom-slot.md` -- N=1,2 补虚拟位凑奇数 slots(N≥3 不变),保留 slot0 体系 + currentSlot 量化真书槽集;删单本路径。
 - `docs/adr/0016-tool-path-sandbox-kb.md` -- agent 文件工具路径沙箱(锁 kb/ 内):read/grep/find/ls/pandoc 读边界 `isWithinKb`(含 raw/),write/edit 写边界 `isWritablePath`(非 raw/);内置走 kbHooks,pandoc 走 execute;不处理 symlink。
+- `docs/adr/0017-isolate-pi-skill-loading.md` -- 限制 pi skill 加载到 z-wiki 自有(DefaultResourceLoader `noSkills: true` + `additionalSkillPaths: [health-check]`),隔离 `~/.claude/skills/` 的 Claude Code 开发技能。
 
 三层物理边界不动:`kb/`(layer1 数据)/ `web/`(layer2 SPA)/ `server/`(layer3 Fastify+pi agent)各自独立,不互写文件系统。桌面化是在三层之外加 `desktop/` shell,不穿透。
 
@@ -50,6 +51,7 @@ make build        # 构建前端 + 后端产物
 - **`raw/` 只读是双层防御**:prompt 引导(第一道)+ `kbHooks` 的 tool_call 拦截(兜底):write/edit 拦 raw 写,read 拦非 md(提示用 pandoc 工具,ADR-0011)。
 - **pi agent 工具集不含 bash**(ADR-0003 D6 基线,ADR-0011 移除 bash):`tools: ["read","edit","write","grep","find","ls","pandoc"]`。非 md 源经 `pandoc` customTool(`makePandocTool`,spawn argv 不经 shell,无注入面)按需转文本;agent 不是通用 shell。
 - **文件工具路径锁 kb/ 内**(ADR-0016):pi 的 `resolveToCwd`->`resolvePath` 不 sandbox(接受绝对路径与 `../` 逃逸),agent 传 kb/ 外路径能跨目录读写。由 kbHooks `tool_call` 拦截(read/grep/find/ls 用 `isWithinKb` 读边界含 raw/;write/edit 用 `isWritablePath` 写边界非 raw/),pandoc 是 customTool 不经钩子,在 `makePandocTool.execute` 内拦。symlink 不处理(agent 无 bash 不能 `ln -s`)。
+- **pi skill 加载隔离**(ADR-0017):DefaultResourceLoader 传 `noSkills: true` + `additionalSkillPaths: [.pi/skills/health-check]`,不扫默认目录(避免 `~/.claude/skills/` 的 70+ Claude Code 开发技能灌进 agent system prompt 被误列成"可用工具")。后续新增 pi skill 须手动加 `additionalSkillPaths`。
 
 ## 代码风格
 

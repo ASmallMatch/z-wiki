@@ -198,9 +198,14 @@ export async function buildAgentContext(opts: AgentContextOptions): Promise<Agen
 
   // 资源加载器:注入知识库系统提示词 + 段A(输出语言)+ 段C(md 规则),始终追加;+ kb 钩子 + 思考语言 extension。
   // 段B(思考语言)不走 appendSystemPrompt--它是 session 级动态(thinkingPromptFactory 按 thinkingLevel 注入)。
+  // noSkills:不扫默认 skill 目录(避免 ~/.claude/skills/ 的 70+ Claude Code 开发技能灌进
+  // z-wiki agent system prompt 被误列成"可用工具",ADR-0017)。additionalSkillPaths:显式
+  // 只加载 z-wiki 自有 skill(ADR-0009 health-check);pandoc/health_check 是 customTool 不受影响。
   const resourceLoader = new DefaultResourceLoader({
     cwd: appRoot,
     agentDir,
+    noSkills: true,
+    additionalSkillPaths: [path.join(appRoot, '.pi', 'skills', 'health-check')],
     systemPromptOverride: () => KB_SYSTEM_PROMPT,
     appendSystemPrompt: [KB_OUTPUT_LANG_PROMPT, ...KB_MD_RULES],
     extensionFactories: [kbHooksFactory, thinkingPromptFactory],
