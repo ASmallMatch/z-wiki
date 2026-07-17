@@ -25,6 +25,7 @@ z-wiki 是三层架构 + 已落地的架构决策。**改任何架构前,先读 
 - `docs/adr/0016-tool-path-sandbox-kb.md` -- agent 文件工具路径沙箱(锁 kb/ 内):read/grep/find/ls/pandoc 读边界 `isWithinKb`(含 raw/),write/edit 写边界 `isWritablePath`(非 raw/);内置走 kbHooks,pandoc 走 execute;不处理 symlink。
 - `docs/adr/0017-isolate-pi-skill-loading.md` -- 限制 pi skill 加载到 z-wiki 自有(DefaultResourceLoader `noSkills: true` + `additionalSkillPaths: [health-check]`),隔离 `~/.claude/skills/` 的 Claude Code 开发技能。
 - `docs/adr/0018-self-hosted-incremental-update.md` -- 自建三档增量更新分发(不走 electron-updater):完整包/应用包/代码包 + baselineVersion/depsVersion/appVersion 三档比对;覆盖式更新绕过 Squirrel 签名约束(mac 不签名也能自动更新);resolves ADR-0003 未决"自动更新策略"。
+- `docs/adr/0020-colored-book-covers.md` -- 书架彩色书皮(书皮按 accent 派生:Archive 深彩混黑 62% / Draft 粉彩混白 58%)+ Archive 色板鲜明化;supersedes ADR-0013 D3'' 的固定书皮色。
 
 三层物理边界不动:`kb/`(layer1 数据)/ `web/`(layer2 SPA)/ `server/`(layer3 Fastify+pi agent)各自独立,不互写文件系统。桌面化是在三层之外加 `desktop/` shell,不穿透。
 
