@@ -37,7 +37,14 @@ test('generateModelsJson: 产出符合 pi 格式的 models.json(provider key 固
       custom: {
         baseUrl: 'https://api.example.com/v1',
         api: 'openai-completions',
-        models: [{ id: 'gpt-4o', contextWindow: 128000, reasoning: true }],
+        models: [
+          {
+            id: 'gpt-4o',
+            contextWindow: 128000,
+            reasoning: true,
+            compat: { supportsDeveloperRole: false },
+          },
+        ],
       },
     },
   })
@@ -85,11 +92,13 @@ test('generateModelsJson: DeepSeek baseUrl → reasoning 恒 true + thinkingLeve
     model: 'deepseek-v4-pro',
   })
   // reasoning 恒 true(乐观声明)+ DeepSeek 注入 effort 映射(DeepSeek 只认 high/max)
+  // + deepseek 思考格式(off 显式发 thinking.disabled,否则 relay 默认开思考)
   assert.deepEqual(json.providers.custom.models[0], {
     id: 'deepseek-v4-pro',
     contextWindow: 128000,
     reasoning: true,
     thinkingLevelMap: { minimal: 'high', low: 'high', medium: 'high', high: 'high', xhigh: 'max' },
+    compat: { supportsDeveloperRole: false, thinkingFormat: 'deepseek' },
   })
 })
 
@@ -120,6 +129,39 @@ test('generateModelsJson: reasoning 恒 true(ADR-0021 乐观声明),非 DeepSeek
   })
   assert.equal(json.providers.custom.models[0].reasoning, true)
   assert.equal(json.providers.custom.models[0].thinkingLevelMap, undefined)
+})
+
+test('generateModelsJson: openai-completions 恒注入 compat.supportsDeveloperRole=false', () => {
+  // pi 对 custom provider 默认 supportsDeveloperRole=true,system prompt 以 role:developer 发送;
+  // 部分中转(如 token.sensenova.cn)只认 system/assistant/user/tool → 400。恒注入 false 让 pi 发
+  // system(全 provider 通用,真 OpenAI 也接受)。DeepSeek 另注入 deepseek 思考格式(off 显式关)。
+  const json = generateModelsJson({
+    baseUrl: 'https://token.sensenova.cn/v1',
+    api: 'openai-completions',
+    model: 'deepseek-v4-flash',
+  })
+  assert.deepEqual(json.providers.custom.models[0].compat, {
+    supportsDeveloperRole: false,
+    thinkingFormat: 'deepseek',
+  })
+})
+
+test('generateModelsJson: 非 DeepSeek 的 openai-completions 不注入 thinkingFormat', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.example.com/v1',
+    api: 'openai-completions',
+    model: 'gpt-4o',
+  })
+  assert.deepEqual(json.providers.custom.models[0].compat, { supportsDeveloperRole: false })
+})
+
+test('generateModelsJson: anthropic-messages 不注入 compat(developer 角色是 openai-completions 概念)', () => {
+  const json = generateModelsJson({
+    baseUrl: 'https://api.anthropic.com',
+    api: 'anthropic-messages',
+    model: 'claude-sonnet-4-5',
+  })
+  assert.equal(json.providers.custom.models[0].compat, undefined)
 })
 
 test('readConfig: 文件不存在 → 回退空壳默认值(空壳能起,不抛错;与 config.example.json 等价)', async () => {

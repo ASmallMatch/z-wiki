@@ -83,6 +83,8 @@ export interface ModelsJson {
         reasoning?: boolean
         /** pi 档位 -> provider effort 映射(pi-ai model.thinkingLevelMap);仅 DeepSeek 自动注入。 */
         thinkingLevelMap?: Partial<Record<ThinkingLevel, string | null>>
+        /** pi model.compat 覆盖;openai-completions 恒注入 supportsDeveloperRole:false(见 generateModelsJson)。 */
+        compat?: { supportsDeveloperRole?: boolean; thinkingFormat?: 'deepseek' }
       }>
     }
   >
@@ -156,9 +158,9 @@ function isDeepSeekHost(baseUrl: string): boolean {
 export function generateModelsJson(
   config: Pick<ConfigJson, 'baseUrl' | 'api' | 'model' | 'contextWindow'>,
 ): ModelsJson {
-  // reasoning 恒 true(ADR-0021 乐观声明):任何 model 都声明支持思考。off 时 pi 不发任何
-  // 思考参数、零副作用;on 时真·思考模型正常工作,不支持的模型由 provider 报错或静默忽略
-  // (能力判断责任交还 provider,z-wiki 不再人工声明)。DeepSeek 额外注入 effort 映射。
+  // reasoning 恒 true(ADR-0021 乐观声明):任何 model 都声明支持思考。不支持的模型由 provider
+  // 报错或静默忽略(能力判断责任交还 provider,z-wiki 不再人工声明)。DeepSeek 额外注入 effort
+  // 映射 + deepseek 思考格式(off 需显式发 thinking.disabled,否则中继端默认开思考,off 失效)。
   const isDeepSeek = isDeepSeekModel(config.baseUrl, config.model)
   const models: ModelsJson['providers'][string]['models'] = []
   if (config.model) {
@@ -176,6 +178,19 @@ export function generateModelsJson(
         medium: 'high',
         high: 'high',
         xhigh: 'max',
+      }
+    }
+    // pi 对 custom provider 默认 supportsDeveloperRole=true,把 system prompt 以 role:developer
+    // 发送;部分中转(如 token.sensenova.cn)只认 system/assistant/user/tool,直接 400 且错误
+    // 此前不透传前端,表现为"对话无任何渲染"。恒注入 false 让 pi 发 system——system 角色
+    // 全 provider 通用(真 OpenAI 也接受),无副作用。
+    if (config.api === 'openai-completions') {
+      m.compat = { supportsDeveloperRole: false }
+      // DeepSeek 系(含官转/ark 等 relay)走 deepseek 思考格式:off → thinking:{type:"disabled"},
+      // on → thinking:{type:"enabled"} + reasoning_effort。pi 默认 openai 格式 off 时不发任何参数,
+      // 而 DeepSeek relay 服务端默认开思考(裸请求也返回 reasoning_content),off 形同虚设。
+      if (isDeepSeek) {
+        m.compat.thinkingFormat = 'deepseek'
       }
     }
     models.push(m)

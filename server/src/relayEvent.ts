@@ -23,6 +23,9 @@ interface PiEvent {
   // read 的 args 形如 { file_path, offset?, limit? };其它工具各异,统一序列化
   args?: unknown
   isError?: boolean
+  // agent_end 携带本轮全部消息 + willRetry(pi 自动重试中不报最终失败)
+  messages?: Array<{ role?: string; stopReason?: string; errorMessage?: string }>
+  willRetry?: boolean
 }
 
 /** 将 pi 事件转 WS 帧。
@@ -52,6 +55,19 @@ export function relayEvent(socket: RelaySocket, event: unknown, ctx: RelayCtx): 
       socket.send(JSON.stringify({ type: 'tool_end', tool: e.toolName, error: Boolean(e.isError) }))
       break
     case 'agent_end': {
+      // 最终失败的 assistant 消息透传 error 帧:stream 报错(如 provider 400)时消息体为空,
+      // 若无此帧前端只收到 done → 静默无渲染。willRetry=true(pi 自动重试中)不报,重试成功则无事发生。
+      if (!e.willRetry) {
+        const lastAssistant = [...(e.messages ?? [])].reverse().find((m) => m.role === 'assistant')
+        if (lastAssistant?.stopReason === 'error') {
+          socket.send(
+            JSON.stringify({
+              type: 'error',
+              text: lastAssistant.errorMessage ?? 'LLM 请求失败',
+            }),
+          )
+        }
+      }
       // stats 缺失时退回裸 done,前端不更新 token 面板。
       const stats = ctx.getStats(socket)
       socket.send(JSON.stringify(stats ? { type: 'done', stats } : { type: 'done' }))

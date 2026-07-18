@@ -162,3 +162,72 @@ test('未知事件类型不发帧(默认忽略)', () => {
   relayEvent(socket, { type: 'something_else' }, noopCtx)
   assert.equal(sent.length, 0)
 })
+
+test('agent_end 最终失败的 assistant 消息 -> error 帧(在 done 前)透传 errorMessage', () => {
+  // stream 报错(如 provider 400)时 assistant 消息为空,若无 error 帧前端只收 done → 静默无渲染。
+  const { socket, sent } = mockSocket()
+  relayEvent(
+    socket,
+    {
+      type: 'agent_end',
+      messages: [
+        { role: 'user' },
+        { role: 'assistant', stopReason: 'error', errorMessage: '400 bad request' },
+      ],
+    },
+    noopCtx,
+  )
+  assert.deepEqual(
+    sent.map((s) => JSON.parse(s)),
+    [
+      { type: 'error', text: '400 bad request' },
+      { type: 'done' },
+    ],
+  )
+})
+
+test('agent_end error 缺 errorMessage -> 兜底文案', () => {
+  const { socket, sent } = mockSocket()
+  relayEvent(
+    socket,
+    { type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'error' }] },
+    noopCtx,
+  )
+  assert.deepEqual(
+    sent.map((s) => JSON.parse(s)),
+    [
+      { type: 'error', text: 'LLM 请求失败' },
+      { type: 'done' },
+    ],
+  )
+})
+
+test('agent_end willRetry=true(pi 自动重试中)-> 不发 error 帧', () => {
+  const { socket, sent } = mockSocket()
+  relayEvent(
+    socket,
+    {
+      type: 'agent_end',
+      willRetry: true,
+      messages: [{ role: 'assistant', stopReason: 'error', errorMessage: '429 rate limit' }],
+    },
+    noopCtx,
+  )
+  assert.deepEqual(
+    sent.map((s) => JSON.parse(s)),
+    [{ type: 'done' }],
+  )
+})
+
+test('agent_end assistant 正常结束(stopReason=stop)-> 不发 error 帧', () => {
+  const { socket, sent } = mockSocket()
+  relayEvent(
+    socket,
+    { type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }] },
+    noopCtx,
+  )
+  assert.deepEqual(
+    sent.map((s) => JSON.parse(s)),
+    [{ type: 'done' }],
+  )
+})
