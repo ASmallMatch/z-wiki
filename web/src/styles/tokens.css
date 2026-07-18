@@ -128,63 +128,65 @@
   --header-stripe: rgba(236, 232, 223, 0.7);
 }
 
-/* ── Draft 主题（浅色：档案室--泛黄纸 + 蓝黑墨水）──────────────
+/* ── Draft 主题（浅色：净纸白 + 明快墨蓝）────────────────
    仅覆盖颜色 token；共享 token（font/spacing/radius/size）继承 :root，不动。
-   配色方向 ADR-0013：略泛黄纸底 + 蓝黑墨水 accent（档案登记本钢笔墨水）。
-   浅深 accent 同源蓝系：深色 Archive 靛青 #6b8fc7 ↔ 浅色 Draft 蓝黑墨水 #2b4a6f，
-   切换不跳变。陶土橙 #d97757 降级为书架色板偶发暖点缀（ADR-0006 材质正色传承）。
+   配色方向 ADR-0022：中性暖白纸底 + 明快墨蓝 accent（supersede ADR-0013 的泛黄纸 + 蓝黑墨水；
+   0013 的 D4'' 去辉光 / D5'' 标题衬线沿用）。
+   浅深 accent 同源蓝系：深色 Archive 靛青 #6b8fc7 ↔ 浅色 Draft 墨蓝 #2b6cb0，
+   切换不跳变。陶土橙 #b88a4a 留书架色板偶发暖点缀（ADR-0006 材质正色传承）。
    ─────────────────────────────────────── */
 :root[data-theme="draft"] {
-  /* hero 标题渐变降级:墨水实色渐变(浅底白辉光即烟熏,ADR-0013 D4''),text-shadow 另在 home.css 前置覆盖块去掉 */
+  /* hero 标题渐变:墨水实色渐变(浅底白辉光即烟熏,ADR-0013 D4''),text-shadow 另在 home.css 前置覆盖块去掉 */
   --hero-title-grad: linear-gradient(180deg, var(--text-bright) 35%, var(--accent) 100%);
 
-  /* 表面：档案室泛黄纸底（#f7f3ec），卡片用更亮的纸白提一档 */
-  --surface: #f7f3ec;
-  --surface-alt: #fdfbf5;
-  --surface-hover: #efe9da;
-  --surface-code: #efe9da;
-  --surface-nav: rgba(247, 243, 236, 0.9);
-  --surface-shelf: #ece4d2; /* 书架展台：比页面略深的纸色，让书皮立住轮廓(ADR-0013 D3'') */
-  /* 文字：近黑暖调（stone-900 正文 / 近黑标题），层级靠明度，沿用不动 */
+  /* 表面：中性暖白纸底（去黄），卡片纯白提一档，代码块一线冷灰与纸底微分 */
+  --surface: #f8f7f4;
+  --surface-alt: #ffffff;
+  --surface-hover: #efeeea;
+  --surface-code: #f2f4f5;
+  --surface-nav: rgba(248, 247, 244, 0.88);
+  --surface-shelf: #ebe9e3; /* 书架展台：比页面略深的净纸色，让粉彩书皮立住轮廓(ADR-0022 D3) */
+  /* 文字：近黑暖调沿用（层级靠明度），faint 略压深补净纸底上的对比 */
   --text: #1c1917;
   --text-bright: #0e0e0e;
   --text-muted: #57534e;
-  --text-faint: #78716c;
-  /* 强调：蓝黑墨水（档案登记本钢笔墨水，与 Archive 靛青同源蓝系，切换不跳变；ADR-0013 D1'') */
-  --accent: #2b4a6f;
-  --accent-soft: #4a6b8f;
-  --accent-bright: #3a5d85;
-  --accent-bg: rgba(43, 74, 111, 0.08);
-  --accent-border: rgba(43, 74, 111, 0.4);
-  /* 描边：暖灰纸边，原子化空心边框 */
-  --border: #d9d2c0;
-  --border-light: #e4dfd0;
-  --border-inner: rgba(0, 0, 0, 0.04);
-  --rule: #d9d2c0;
-  --track-bg: rgba(0, 0, 0, 0.14);
-  /* 阴影：中性偏冷（去暖褐，与蓝黑墨水协调；不偏褐避免烟熏） */
+  --text-faint: #6f6a64;
+  /* 强调：明快墨蓝（与 Archive 靛青同源蓝系，切换不跳变；ADR-0022 D1）。
+     浅底语义不变：soft 中蓝做 kicker 等小字，bright 深浓做正文级 accent 文字 */
+  --accent: #2b6cb0;
+  --accent-soft: #3d6fa8;
+  --accent-bright: #1f5aa6;
+  --accent-bg: rgba(43, 108, 176, 0.08);
+  --accent-border: rgba(43, 108, 176, 0.38);
+  /* 描边：去黄中性暖灰，原子化空心边框 */
+  --border: #e1ded8;
+  --border-light: #ebe9e3;
+  --border-inner: rgba(0, 0, 0, 0.05);
+  --rule: #e1ded8;
+  --track-bg: rgba(0, 0, 0, 0.12);
+  /* 阴影：中性偏冷沿用（不偏褐避免烟熏） */
   --shadow-sm: 0 1px 3px rgba(40, 40, 50, 0.08);
   --shadow-md: 0 4px 14px rgba(40, 40, 50, 0.1);
   --shadow-lg: 0 8px 32px rgba(40, 40, 50, 0.14);
   /* focus/hover ring：墨水描边（去发光，浅底辉光即烟熏；ADR-0013 D4'') */
   --glow-accent: 0 0 0 1px var(--accent-border);
-  --selection: rgba(43, 74, 111, 0.3);
-  --card-hover: rgba(43, 74, 111, 0.05);
-  /* 展厅值降级:浅底辉光即烟熏(ADR-0013 D4'')——按钮辉光改中性阴影,hover 改墨水描边;
+  --selection: rgba(43, 108, 176, 0.18);
+  --card-hover: rgba(43, 108, 176, 0.05);
+  /* 展厅值降级沿用(ADR-0013 D4'')：按钮辉光=中性阴影,hover=墨水描边;
      渐变沿用 ink 蓝 token(accent-soft→accent),文字换浅纸色保证对比 */
   --btn-primary-text: var(--surface);
   --glow-button: var(--shadow-md);
   --glow-button-hover: 0 0 0 1px var(--accent-border), var(--shadow-md);
-  /* 代码高亮：蓝黑墨水底下重调一套，保证对比度 */
-  --code-kw: #5a4a8a;
-  --code-str: #2f7a4a;
-  --code-num: #8a5a2a;
-  --code-fn: #2a5a8a;
-  --code-cmt: #78716c;
-  --code-op: #6a4a7a;
-  /* header 警戒带次色：蓝黑墨水（与 accent 同源） */
-  --header-stripe: rgba(43, 74, 111, 0.5);
-  /* 标题字体：Draft 下换衬线(档案出版物气质)；正文 sans 不动(ADR-0013 D5'') */
+  /* 代码高亮：净纸底下重排色相（紫/绿/琥珀/蓝/灰/青），明度饱和拉开不再糊(ADR-0022 D4) */
+  --code-kw: #6d28d9;
+  --code-str: #1a7f37;
+  --code-num: #b45309;
+  --code-fn: #1d4ed8;
+  --code-cmt: #6b7280;
+  --code-op: #0e7490;
+  /* header 警戒带次色：墨蓝（与 accent 同源） */
+  --header-stripe: rgba(43, 108, 176, 0.45);
+  /* 标题字体：Draft 下换衬线沿用(ADR-0013 D5'') */
   --heading-font: var(--serif);
 }
 

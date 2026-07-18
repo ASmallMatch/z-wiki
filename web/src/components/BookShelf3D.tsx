@@ -59,24 +59,26 @@ const PAPER_CREAM = '#e8ddd0'
 const DARK_BASE = '#12121a'
 
 // 档案色板:每本书的身份色(胶带/边框/卷号标),书皮由它派生深变体(彩色书皮,ADR-0020)
-// 中高明度鲜明色:混黑 62% 成书皮后仍保持色相区分(深蓝/松石/茜红/琥珀/堇紫/青蓝)
+// 同一色相族(靛蓝/青碧/松绿/琥珀/茜红/堇紫)贯穿两主题,Archive 深宝石 / Draft 柔粉彩(ADR-0022 D3)。
+// Archive 取高饱和中亮色:混黑 62% 成书皮后色相仍存活(石板蓝/深青/森林绿/皮棕/酒红/深紫)
 const ARCHIVE_ACCENTS = [
   '#6b8fc7', // 靛青(主 accent)
-  '#5ea89a', // 松石绿
-  '#b86a76', // 茜红
-  '#c08a4a', // 琥珀
-  '#9378b8', // 堇紫
-  '#5f96b5', // 青蓝
+  '#3fae9d', // 青碧
+  '#4da568', // 松绿
+  '#d09245', // 琥珀
+  '#c25a68', // 茜红
+  '#8f6fd0', // 堇紫
 ]
 
-// 案卷色板：档案室 Draft 浅书皮上的墨水/戳印色系（ADR-0013 D3''）
+// 案卷色板：与 Archive 同色相族的柔化版（ADR-0022 D3）。
+// 中饱和中明:混纸白 58% 成粉彩书皮后呈雾蓝/青瓷/鼠尾草/沙金/灰玫/藕紫,协调不糖果
 const DRAFT_ACCENTS = [
-  '#2b4a6f', // 蓝黑墨水（主，对齐 Draft accent；ADR-0013 D1''）
-  '#5a7a5a', // 档案局墨绿
-  '#8a3a2f', // 朱砂戳印红（偶发暖）
+  '#2b6cb0', // 墨蓝（主，对齐 Draft accent；ADR-0022 D1）
+  '#3f8f85', // 青碧
+  '#4a8f5f', // 松绿
   '#b88a4a', // 陶土橙（ADR-0006 材质正色传承，降级偶发暖点缀）
-  '#6a5a8a', // 墨紫
-  '#4a6a6a', // 灰青
+  '#b0515a', // 茜红（偶发暖）
+  '#7a63b0', // 堇紫
 ]
 
 // 每套主题的书配色(ADR-0006 D3':纸边/accent 色板/灯光随主题;ADR-0020:书皮改 per-book 派生)
@@ -95,12 +97,12 @@ const ARCHIVE_COLORS: BookThemeColors = {
   rimLightColor: 0x6b8fc7,
 }
 
-// Draft:档案室浅展台 + 案卷色板;书皮 = accent 混纸白 58%(粉彩书皮,与纸色展台靠色相分层)
+// Draft:净纸浅展台 + 案卷色板;书皮 = accent 混纸白 58%(粉彩书皮,与净纸展台靠色相分层)
 const DRAFT_COLORS: BookThemeColors = {
   paper: '#fdfbf5', // 最亮纸白(书顶/书底/书边跳出)
   accents: DRAFT_ACCENTS,
   dirLightIntensity: 0.8,
-  rimLightColor: 0x2b4a6f,
+  rimLightColor: 0x2b6cb0,
 }
 
 function colorsFor(theme: Theme): BookThemeColors {
@@ -109,7 +111,7 @@ function colorsFor(theme: Theme): BookThemeColors {
 
 // 书皮底色:由该书 accent 派生(彩色书皮,ADR-0020)。
 // Archive 混展台深底 62% → 深彩书皮,在 #12121a 展台上仍亮出一档;
-// Draft 混纸白 58% → 粉彩书皮,与暖纸展台 #ece4d2 靠色相+明度分层。
+// Draft 混纸白 58% → 粉彩书皮,与净纸展台 #ebe9e3 靠色相+明度分层。
 function coverBase(accent: string, theme: Theme): string {
   return theme === 'draft'
     ? mixColor(accent, DRAFT_COLORS.paper, 0.58)

@@ -527,19 +527,19 @@
   color: var(--text-muted);
 }
 
-/* Wikilink — 不打断阅读流 */
+/* Wikilink — accent 可辨 + 虚线下划，克制但不再隐身(ADR-0022 D5) */
 a.wl {
-  color: inherit;
+  color: var(--accent);
   text-decoration: none;
-  border-bottom: 1px dotted var(--border);
+  border-bottom: 1px dotted var(--accent-border);
   transition:
     border-color 0.2s,
     color 0.2s;
 }
 
 a.wl:hover {
-  color: var(--accent);
-  border-bottom-color: var(--accent-soft);
+  color: var(--accent-bright);
+  border-bottom-color: var(--accent-bright);
 }
 
 /* TOC 响应式:宽屏显示侧栏、隐藏移动 toggle(原 global Responsive) */
