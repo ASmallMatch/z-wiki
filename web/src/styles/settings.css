@@ -44,7 +44,8 @@
   padding: var(--sp-5);
   background: var(--surface-alt);
   border: 1px solid var(--border);
-  border-radius: var(--r-2xl);
+  /* 容器级柔圆角(容器柔化/小件锋利,见 tokens.css 圆角注释) */
+  border-radius: var(--r-3xl);
 }
 
 .settings-section-title {
@@ -171,8 +172,9 @@
 .settings-btn {
   padding: 0.5rem var(--sp-4);
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  /* 边框 + 无背景:与 primary/accent/danger 变体统一(知识库按钮、保存按钮同风格) */
+  border-radius: var(--r-2xl);
+  /* ghost 次级按钮(docs .btn-ghost 风:1px 描边 + 半透明底 + hover 描边亮 accent);
+     primary 主按钮走渐变 + 辉光,见下方变体 */
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -183,22 +185,32 @@
   transition:
     background 0.15s,
     border-color 0.15s,
-    color 0.15s;
+    color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
 }
 .settings-btn:hover:not(:disabled) {
   border-color: var(--accent-border);
   background: var(--accent-bg);
   color: var(--accent-bright);
+  transform: var(--lift);
 }
+/* 主按钮:docs .btn-primary 同款——accent 渐变底 + 辉光阴影 + hover 辉光加强/微抬升;
+   Draft 下辉光降级为描边/中性阴影、文字浅纸色(token 双主题值见 tokens.css,ADR-0013 D4'') */
 .settings-btn.primary {
-  border-color: var(--accent-border);
-  background: transparent;
-  color: var(--text);
+  border-color: transparent;
+  background: var(--accent-grad);
+  color: var(--btn-primary-text);
+  box-shadow: var(--glow-button);
 }
 .settings-btn.primary:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent-bg);
-  color: var(--accent-bright);
+  border-color: transparent;
+  background: var(--accent-grad);
+  color: var(--btn-primary-text);
+  box-shadow: var(--glow-button-hover);
+}
+.settings-btn.primary:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .settings-btn:disabled {
   opacity: 0.4;
@@ -259,9 +271,13 @@
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--border-light);
-  border-radius: var(--r-2xl);
+  border-radius: var(--r-3xl);
   background: var(--surface);
   transition: border-color 0.15s;
+}
+/* 卡片质感:hover 描边亮 accent(docs .card:hover 风) */
+.vault-item:hover {
+  border-color: var(--accent-border);
 }
 .vault-item.current {
   border-color: var(--accent-border);
@@ -450,7 +466,7 @@
   list-style: none;
   background: var(--surface-alt);
   border: 1px solid var(--accent-border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-2xl);
   box-shadow:
     inset 0 0 0 1px var(--border-inner),
     var(--shadow-lg);

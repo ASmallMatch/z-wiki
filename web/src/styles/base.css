@@ -299,3 +299,24 @@ code {
   max-width: 90vw;
   user-select: none;
 }
+
+/* ── Reduced Motion:展厅 hover 微抬升统一降级 ──────────────────
+   各面新增的 transform 动效在此关停(参照 chat.css fairy 流光降级写法;
+   base 排最后 import,同优先级覆盖生效,ADR-0014 D3)。颜色/描边反馈保留,只去位移。 */
+@media (prefers-reduced-motion: reduce) {
+  .card:hover,
+  .bottom-drawer-item:hover,
+  .page-nav-link:hover,
+  .chat-quick:hover:not(:disabled),
+  .chat-send:hover:not(:disabled),
+  .chat-send:active:not(:disabled),
+  .chat-upload:hover:not(:disabled),
+  .chat-drawer-close:hover,
+  .chat-nav-btn:hover:not(:disabled),
+  .chat-copy-btn:hover,
+  .settings-btn:hover:not(:disabled),
+  .settings-btn.primary:active:not(:disabled),
+  .header-chat-btn:hover {
+    transform: none;
+  }
+}

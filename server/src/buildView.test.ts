@@ -101,7 +101,10 @@ test('summary: 嵌套标签剥离后无残余尖括号(CodeQL js/incomplete-mult
   try {
     const { pages } = await buildView(root)
     const summary = pages.find((p) => p.stem === '01-xss')?.summary ?? ''
-    assert.ok(!summary.includes('<') && !summary.includes('>'), `summary 不应含尖括号,实际:${summary}`)
+    assert.ok(
+      !summary.includes('<') && !summary.includes('>'),
+      `summary 不应含尖括号,实际:${summary}`,
+    )
   } finally {
     await fs.rm(root, { recursive: true, force: true })
   }

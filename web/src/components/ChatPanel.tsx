@@ -25,7 +25,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 /** skill 命令 -> 友好显示文本。user message 渲染时映射(按钮触发与手打统一显示)。
  *  send 只发原始命令,显示文本是 ChatPanel 的 UI 关注点,不漏进 useChat/send。 */
 const SKILL_DISPLAY: Record<string, string> = {
-  '/skill:health-check': '🔍 健康检查',
+  '/skill:health-check': '健康检查',
 }
 
 /** 格式化 token 数:>1k 显示为 1.2k,否则原值。 */
@@ -266,7 +266,7 @@ const MessageBubble = memo(function MessageBubble({
     <div className={`chat-row chat-row-${isUser ? 'user' : 'fairy'}`} data-role={msg.role}>
       {!isUser && (
         <div className="chat-label">
-          <span className="chat-label-name">Fairy</span>✨
+          <span className="chat-label-name">Fairy</span>
         </div>
       )}
       <div className="chat-row-body">
@@ -473,7 +473,7 @@ export default function ChatPanel({ onClose }: ChatPanelProps) {
         {messages.length === 0
           ? null
           : (() => {
-              // 找出最后一个 Fairy✨消息,用于 typing indicator
+              // 找出最后一个 Fairy 消息,用于 typing indicator
               let lastId: string | null = null
               for (let i = messages.length - 1; i >= 0; i--) {
                 if (messages[i].role === 'assistant') {

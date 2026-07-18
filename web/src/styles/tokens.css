@@ -37,6 +37,31 @@
   --selection: rgba(107, 143, 199, 0.35);
   --card-hover: rgba(107, 143, 199, 0.06);
 
+  /* 展厅共用值：与 docs/index.html 落地页同源（数值取自 .btn-primary/.card/kicker），
+     各面引用 token 不散落硬编码；Draft 降级值见下方 draft 块（ADR-0013 D4''） */
+  --accent-grad: linear-gradient(
+    180deg,
+    var(--accent-soft),
+    var(--accent)
+  ); /* 主按钮渐变(docs .btn-primary) */
+  --btn-primary-text: #0e0e16; /* 主按钮文字：深色压亮渐变(docs .btn-primary) */
+  --glow-button: 0 8px 28px rgba(107, 143, 199, 0.28); /* 主按钮辉光(docs .btn-primary) */
+  --glow-button-hover: 0 10px 36px rgba(107, 143, 199, 0.42); /* hover 辉光加强(docs .btn-primary:hover) */
+  --lift: translateY(-1px); /* hover 微抬升：按钮(docs .btn:hover) */
+  --lift-2: translateY(-2px); /* hover 微抬升：卡片 */
+  --hairline: linear-gradient(
+    90deg,
+    transparent,
+    var(--border-light),
+    transparent
+  ); /* 渐变消隐细分隔线(docs kicker/hr) */
+  --ls-kicker: 0.08em; /* mono kicker 小标签宽字距(docs .mono 系) */
+  --hero-title-grad: linear-gradient(
+    180deg,
+    #ffffff 30%,
+    #b9c8e4 100%
+  ); /* hero 标题渐变文字(docs .hero h1);Draft 覆盖为墨水渐变 */
+
   /* 代码高亮：降低饱和度，与靛青 accent 协调 */
   --code-kw: #c49ee6;
   --code-str: #9dd6a8;
@@ -88,12 +113,15 @@
   --content-w: min(92vw, 80rem);
   --content-n: min(92vw, 46rem);
 
-  /* 圆角：默认 2–4px 呼应书卷号标签的锋利感；--r-xl/--r-2xl 为柔化档（按钮/容器等需弱化锋利感处） */
+  /* 圆角新语言:容器柔化/小件锋利。
+     容器级(按钮/卡片/气泡/抽屉/composer/菜单)用 --r-2xl/--r-3xl 柔化档(8–12px,docs 展厅风);
+     小件级(chip/徽章/代码块/小标签/行内 code)保持 --r-sm/--r-md/--r-lg(2–4px)锋利,呼应书卷号标签。 */
   --r-sm: 2px;
   --r-md: 3px;
   --r-lg: 4px;
   --r-xl: 6px;
   --r-2xl: 8px;
+  --r-3xl: 12px;
   --r-pill: 999px;
 
   /* header 底部警戒带斜纹的非 accent 色（Archive 暖白；Draft 在下方覆盖为深石板） */
@@ -107,6 +135,9 @@
    切换不跳变。陶土橙 #d97757 降级为书架色板偶发暖点缀（ADR-0006 材质正色传承）。
    ─────────────────────────────────────── */
 :root[data-theme="draft"] {
+  /* hero 标题渐变降级:墨水实色渐变(浅底白辉光即烟熏,ADR-0013 D4''),text-shadow 另在 home.css 前置覆盖块去掉 */
+  --hero-title-grad: linear-gradient(180deg, var(--text-bright) 35%, var(--accent) 100%);
+
   /* 表面：档案室泛黄纸底（#f7f3ec），卡片用更亮的纸白提一档 */
   --surface: #f7f3ec;
   --surface-alt: #fdfbf5;
@@ -139,6 +170,11 @@
   --glow-accent: 0 0 0 1px var(--accent-border);
   --selection: rgba(43, 74, 111, 0.3);
   --card-hover: rgba(43, 74, 111, 0.05);
+  /* 展厅值降级:浅底辉光即烟熏(ADR-0013 D4'')——按钮辉光改中性阴影,hover 改墨水描边;
+     渐变沿用 ink 蓝 token(accent-soft→accent),文字换浅纸色保证对比 */
+  --btn-primary-text: var(--surface);
+  --glow-button: var(--shadow-md);
+  --glow-button-hover: 0 0 0 1px var(--accent-border), var(--shadow-md);
   /* 代码高亮：蓝黑墨水底下重调一套，保证对比度 */
   --code-kw: #5a4a8a;
   --code-str: #2f7a4a;

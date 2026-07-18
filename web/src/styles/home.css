@@ -206,10 +206,24 @@
   margin-bottom: var(--sp-4);
   font-family: var(--mono);
   font-size: var(--fs-xs);
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
+  /* docs .kicker 风:accent-soft + 宽字距 0.2em */
+  color: var(--accent-soft);
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   transition: color 0.45s ease;
+}
+/* kicker 两侧渐变 hairline(docs .kicker::before/::after):向外渐隐 */
+.hero-meta::before,
+.hero-meta::after {
+  content: "";
+  width: 42px;
+  height: 1px;
+}
+.hero-meta::before {
+  background: linear-gradient(90deg, transparent, var(--accent-border));
+}
+.hero-meta::after {
+  background: linear-gradient(90deg, var(--accent-border), transparent);
 }
 
 .hero:hover .hero-meta,
@@ -225,11 +239,17 @@
 
 .hero h1 {
   position: relative;
+  /* docs .hero h1 风:serif 900 展示标题 + 渐变文字(--hero-title-grad 双主题 token,
+     Archive 白→浅靛 / Draft 墨水渐变;text-shadow 辉光 Draft 已在前置覆盖块去掉,ADR-0013 D4'') */
+  font-family: var(--serif);
   font-size: var(--fs-hero);
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 900;
+  letter-spacing: -0.01em;
   line-height: var(--lh-hero);
-  color: var(--text-bright);
+  background: var(--hero-title-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   text-shadow: 0 0 40px color-mix(in srgb, var(--accent) 14%, transparent);
   transition: text-shadow 0.45s ease;
 }
@@ -521,23 +541,25 @@
   flex-direction: column;
   background: var(--surface-alt);
   border: 1px solid var(--border-light);
-  border-radius: var(--r-lg);
+  /* 容器级柔圆角(容器柔化/小件锋利,见 tokens.css 圆角注释) */
+  border-radius: var(--r-3xl);
   padding: var(--sp-6);
   transition:
-    border-color 0.25s,
-    box-shadow 0.3s,
-    background 0.25s,
-    transform 0.25s;
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s,
+    transform 0.2s;
   color: inherit;
   text-decoration: none;
   cursor: pointer;
 }
 
+/* docs .card:hover 风:描边亮 accent + 微抬升 + 深阴影 */
 .card:hover {
   border-color: var(--accent-border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   background: var(--surface);
-  transform: translateY(-3px);
+  transform: var(--lift-2);
 }
 
 .card:focus-visible {
@@ -580,7 +602,8 @@
   justify-content: space-between;
   margin-top: var(--sp-5);
   padding-top: var(--sp-3);
-  border-top: 1px solid var(--border-light);
+  /* hairline 渐变消隐(两端淡出,docs kicker/hr 风),替代实线 border-top */
+  background: var(--hairline) top / 100% 1px no-repeat;
   font-size: var(--fs-xs);
   color: var(--text-faint);
 }
@@ -766,22 +789,23 @@ body.home-no-scroll {
   text-align: left;
   background: var(--surface-alt);
   border: 1px solid var(--border-light);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-3xl);
   padding: var(--sp-5);
   color: inherit;
   cursor: pointer;
   transition:
-    border-color 0.25s,
-    box-shadow 0.3s,
-    background 0.25s,
-    transform 0.25s;
+    border-color 0.2s,
+    box-shadow 0.2s,
+    background 0.2s,
+    transform 0.2s;
 }
 
+/* docs .card:hover 风:描边亮 accent + 微抬升 + 深阴影 */
 .bottom-drawer-item:hover {
   border-color: var(--accent-border);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-lg);
   background: var(--surface);
-  transform: translateY(-2px);
+  transform: var(--lift-2);
 }
 
 .bottom-drawer-item:focus-visible {
@@ -810,7 +834,8 @@ body.home-no-scroll {
 .bottom-drawer-item-meta {
   margin-top: auto;
   padding-top: var(--sp-3);
-  border-top: 1px solid var(--border-light);
+  /* hairline 渐变消隐,与 .card-footer 一致 */
+  background: var(--hairline) top / 100% 1px no-repeat;
   font-size: var(--fs-xs);
   color: var(--text-faint);
 }

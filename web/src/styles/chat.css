@@ -113,7 +113,9 @@
   gap: var(--sp-2);
   margin-top: var(--sp-1);
   padding-top: var(--sp-2);
-  border-top: 1px solid var(--border-light);
+  /* hairline 渐变消隐(两端淡出,docs kicker/hr 风),替代实线 border-top */
+  border-top: none;
+  background: var(--hairline) top / 100% 1px no-repeat;
 }
 .chat-status-left {
   display: flex;
@@ -146,6 +148,8 @@
 .chat-model-name {
   font-family: var(--mono);
   font-size: var(--fs-xs);
+  /* kicker 小标签:mono + 宽字距 + 低亮度色,与 Fairy/思考/工具 chip 标签统一 */
+  letter-spacing: var(--ls-kicker);
   color: var(--text-muted);
   max-width: 10em;
   overflow: hidden;
@@ -184,19 +188,21 @@
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-2xl);
   background: transparent;
   color: var(--text-faint);
   cursor: pointer;
   transition:
     color 0.15s,
     background 0.15s,
-    border-color 0.15s;
+    border-color 0.15s,
+    transform 0.15s;
 }
 .chat-drawer-close:hover {
-  color: var(--text-bright);
-  background: var(--surface-hover);
-  border-color: var(--border);
+  color: var(--accent-bright);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  transform: var(--lift);
 }
 .chat-messages {
   flex: 1;
@@ -234,18 +240,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  /* 常驻克制(透明 faint);border 预留透明位,hover 亮 accent 描边不位移 */
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-faint);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-2xl);
   cursor: pointer;
   transition:
     color 0.15s,
-    background 0.15s;
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
 .chat-nav-btn:hover:not(:disabled) {
   color: var(--accent);
   background: var(--accent-bg);
+  border-color: var(--accent-border);
+  transform: var(--lift);
 }
 .chat-nav-btn:disabled {
   opacity: 0.35;
@@ -266,18 +277,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  /* 与 .chat-nav-btn 同语言:常驻克制,hover 亮 accent 描边 + 微抬升 */
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-faint);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-2xl);
   cursor: pointer;
   transition:
     color 0.15s,
-    background 0.15s;
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
 .chat-copy-btn:hover {
   color: var(--accent);
   background: var(--accent-bg);
+  border-color: var(--accent-border);
+  transform: var(--lift);
 }
 /* ── 档案式时间线:所有回合左对齐,role 标签置顶,内容在下 ── */
 .chat-row {
@@ -357,10 +373,11 @@
   font-family: var(--mono);
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.12em;
+  /* kicker 小标签:宽字距 + 低亮度色(docs .mono 风) */
+  letter-spacing: var(--ls-kicker);
   color: var(--text-faint);
 }
-/* ❦ 花朵署名标:落在竖线位置(左 0),Fairy✨ 缩进 sp-4 与 chat-bubble 对齐 */
+/* ❦ 花朵署名标:落在竖线位置(左 0),Fairy 缩进 sp-4 与 chat-bubble 对齐 */
 .chat-label::before {
   content: "❦";
   position: absolute;
@@ -368,27 +385,18 @@
   top: 0;
   color: var(--accent-soft);
 }
-/* Fairy 名字炫彩:完整彩虹缓慢横向流动(8s 循环),prefers-reduced-motion 回退静态。
-   ✨ emoji 不吃 background-clip:text,故拆 span 只给 "Fairy" 套渐变;
-   黄色段取暖橙偏 #ffd166 避免浅色背景糊;渐变首尾同色(红)实现无缝循环。 */
+/* Fairy 名字流光:accent 系渐变横向扫光(background-clip:text),与左侧竖线流光同一语言;
+   双主题随 accent token 自动翻转(Draft 呈墨水扫光,accent 为深墨水蓝保证浅底可读),
+   reduced-motion 回退静态渐变。 */
 .chat-label-name {
-  background-image: linear-gradient(
-    90deg,
-    #ff5b5b,
-    #ff9a3c,
-    #ffd166,
-    #5ec98f,
-    #5b9bf0,
-    #b266ff,
-    #ff5b5b
-  );
+  background-image: linear-gradient(90deg, var(--accent), var(--accent-bright), var(--accent));
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: chat-label-rainbow 8s linear infinite;
+  animation: chat-label-flow 4s linear infinite;
 }
-@keyframes chat-label-rainbow {
+@keyframes chat-label-flow {
   0% {
     background-position: 0% center;
   }
@@ -515,6 +523,9 @@
   margin: 0 0 var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
   border-left: 3px solid var(--accent-border);
+  /* 底色层次:surface-alt 垫一层,引用与正文拉开(与 .prose blockquote 同源) */
+  background: var(--surface-alt);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
   color: var(--text-muted);
 }
 .chat-markdown blockquote.callout {
@@ -523,7 +534,8 @@
 .chat-markdown hr {
   border: none;
   height: 1px;
-  background: var(--border-light);
+  /* 渐变消隐 hairline(两端淡出,docs kicker/hr 风,与 .prose hr 同源) */
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
   margin: var(--sp-2) 0;
 }
 .chat-markdown table {
@@ -549,6 +561,10 @@
 }
 .chat-markdown tbody tr:last-child td {
   border-bottom: none;
+}
+/* 斑马纹:与 .prose 同款 2.5% 明度行底,长表易追行 */
+.chat-markdown tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
 }
 .chat-row-user .chat-text {
   color: var(--text-bright);
@@ -628,8 +644,9 @@
   flex-shrink: 0;
 }
 .chat-tool-name {
-  color: var(--accent-bright);
-  letter-spacing: 0.04em;
+  /* kicker 小标签:低亮度色 + 宽字距,与状态/入参的 faint 拉开一档即可 */
+  color: var(--text-muted);
+  letter-spacing: var(--ls-kicker);
 }
 .chat-tool-state {
   color: var(--text-faint);
@@ -718,7 +735,7 @@
 }
 .chat-thinking-label {
   color: var(--text-muted);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--ls-kicker);
 }
 .chat-thinking-count {
   color: var(--text-faint);
@@ -744,7 +761,8 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  /* 容器级柔圆角(容器柔化/小件锋利,见 tokens.css 圆角注释) */
+  border-radius: var(--r-3xl);
   background: var(--surface);
   /* 作为对话框框体悬浮在 panel 内:外 margin 与消息区/抽屉边缘留白,
      内 padding 让文字与按钮与框边分离;top 略大给顶部 resize handle 呼吸空间 */
@@ -767,7 +785,7 @@
   gap: var(--sp-1);
   padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-2xl);
   background: var(--surface);
   color: var(--text-muted);
   font-family: var(--sans);
@@ -776,11 +794,14 @@
   cursor: pointer;
   transition:
     color 0.15s,
-    border-color 0.15s;
+    border-color 0.15s,
+    transform 0.15s;
 }
 .chat-quick:hover:not(:disabled) {
   color: var(--accent-bright);
   border-color: var(--accent-border);
+  /* docs .btn-ghost:hover 风:描边亮 accent + 微抬升 */
+  transform: var(--lift);
 }
 .chat-quick:disabled {
   opacity: 0.4;
@@ -800,7 +821,7 @@
   list-style: none;
   padding: var(--sp-1);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-2xl);
   background: var(--surface);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   white-space: nowrap;
@@ -879,12 +900,16 @@
 }
 .chat-ingest-label {
   white-space: nowrap;
+  letter-spacing: var(--ls-kicker);
 }
 .chat-ingest-failed .chat-ctx-fill {
   background: #d98a7a;
 }
 
 /* 发送按钮(图标):向右箭矢,无填充无边框 */
+/* 发送:对话第一主按钮,docs .btn-primary 同款——accent 渐变底 + 辉光阴影 + hover 辉光加强/微抬升;
+   图标 fill=currentColor 吃 --btn-primary-text(Draft 辉光降级为描边/中性阴影、文字浅纸色,见 tokens.css)。
+   与 .settings-btn.primary 同 token 源。 */
 .chat-send {
   display: flex;
   align-items: center;
@@ -893,22 +918,29 @@
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: var(--r-md);
-  background: transparent;
-  /* 图标色:var(--text-muted),与上传按钮一致(暗主题亮、亮主题暗) */
-  color: var(--text-muted);
+  border-radius: var(--r-2xl);
+  background: var(--accent-grad);
+  color: var(--btn-primary-text);
+  box-shadow: var(--glow-button);
   cursor: pointer;
-  transition: color 0.15s;
+  transition:
+    box-shadow 0.15s,
+    transform 0.15s;
 }
 .chat-send:hover:not(:disabled) {
-  color: var(--accent-bright);
+  box-shadow: var(--glow-button-hover);
+  transform: var(--lift);
+}
+.chat-send:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .chat-send:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* 上传按钮(图标):upload,无填充无边框 */
+/* 上传:ghost 次级按钮(docs .btn-ghost 风:1px 描边 + 透明底,hover 描边亮 accent + 淡底 + 微抬升),
+   与 .chat-quick 同语言;主按钮待遇只给发送(.chat-send)。 */
 .chat-upload {
   display: flex;
   align-items: center;
@@ -916,18 +948,25 @@
   width: calc(28px * 4 / 3);
   height: 28px;
   padding: 0;
-  border: none;
-  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
   background: transparent;
   /* 与左侧状态信息拉开间距:上传到发送因两按钮内 SVG 居中留白显宽,
      不加此 margin 上传会视觉偏左(离状态信息近、离发送远),加后三者间距视觉一致 */
   margin-left: var(--sp-2);
   color: var(--text-muted);
   cursor: pointer;
-  transition: color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s,
+    transform 0.15s;
 }
 .chat-upload:hover:not(:disabled) {
   color: var(--accent-bright);
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  transform: var(--lift);
 }
 .chat-upload:disabled {
   opacity: 0.4;
