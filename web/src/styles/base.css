@@ -10,29 +10,16 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
-  /* 始终预留滚动条轨道:首页(锁滚无条)与设置页(知识库多时超高出条)内容区宽度一致,
-     齿轮 toggle 切换两页时不因滚动条出现/消失横向摆动。overlay 滚动条系统无视觉副作用。 */
-  scrollbar-gutter: stable;
-  /* 视口滚动条:复用知识详情页(.toc-sticky)同款深色档案风 token,避免默认白条破坏整体调性。
-     thumb 用 --border(低饱和靛青描边)、hover 用 --accent-border,与局部容器滚动条统一。 */
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  /* 视口滚动条全端隐藏:mac/win 的 overlay 条静置时本就不可见,Linux 经典条却常驻占位,
+     且切 data-theme 整页重绘时原生滚动条层与页面层不同帧,右侧条带闪默认浅色(Chromium
+     OverlayScrollbar 开关在 Linux 实测无效,无法对齐 mac 的 overlay 形态,故统一隐藏)。
+     隐藏后滚轮滚动不受影响;无条可出,首页/设置页切换也不会横向摆动,不再需要
+     scrollbar-gutter 预留。局部容器(.toc-sticky 等)的细条不受影响。 */
+  scrollbar-width: none;
 }
-
-/* 视口滚动条(WebKit):与 .toc-sticky / .bottom-drawer-body 局部滚动条同一套 token,
-   全局补齐视口这一处,白色默认条即融入深色档案风。 */
+/* WebKit 侧隐藏视口条(Firefox 走上面 scrollbar-width)。 */
 html::-webkit-scrollbar {
-  width: 5px;
-}
-html::-webkit-scrollbar-track {
-  background: transparent;
-}
-html::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: var(--r-pill);
-}
-html::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-border);
+  display: none;
 }
 body {
   font-family: var(--sans);
