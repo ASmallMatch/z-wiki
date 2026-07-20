@@ -643,6 +643,12 @@
   cursor: grabbing;
 }
 
+/* 轨道球态（中键/空格 toggle）：光标钉在 grabbing——"抓住书转动"，区别于推转盘的平移。
+   须置于 :active 之后：两者特异性相同（0,2,0），后定义者胜 */
+.book-shelf-3d.orbiting {
+  cursor: grabbing;
+}
+
 /* ── 首页无滚动条 ─────────────────────────────────────────────── */
 
 body.home-no-scroll {

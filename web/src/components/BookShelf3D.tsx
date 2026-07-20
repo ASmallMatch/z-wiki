@@ -866,6 +866,12 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       })
     }
 
+    // 轨道球态切换：同步容器 class，CSS 借此把光标钉在 grabbing（抓住书转动，区别于推转盘）
+    function setOrbiting(v: boolean) {
+      orbiting = v
+      container?.classList.toggle('orbiting', v)
+    }
+
     // 进入轨道球：对齐 rot 到最近槽（稳定 currentSlot），清零惯性，避免旋转中 currentSlot 漂移
     function enterOrbit() {
       if (snapping) {
@@ -875,7 +881,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       vel = 0
       const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
       rot.val = orbitAlignTarget(rot.val, effStep, realMin, realMax)
-      orbiting = true
+      setOrbiting(true)
     }
 
     function onPointerEnter(e: PointerEvent) {
@@ -929,7 +935,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       if (e.button === 1) {
         e.preventDefault()
         if (orbiting) {
-          orbiting = false
+          setOrbiting(false)
           return
         }
         const ndc = mouseToNDC(e)
@@ -940,7 +946,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       // （否则无位移松手会命中中心本触发 onBookClick，把"退出轨道球"误变成"打开文章"）
       if (e.button === 0) {
         if (orbiting) {
-          orbiting = false
+          setOrbiting(false)
           return
         }
         beginDrag(e.clientX)
@@ -1043,7 +1049,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       if (e.repeat) return
       if (e.code === 'Escape') {
         if (orbiting) {
-          orbiting = false
+          setOrbiting(false)
           e.preventDefault()
         }
         return
@@ -1053,7 +1059,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         // 拖拽进行中不进轨道球，避免 dragging+orbiting 冲突与残留 vel
         if (dragging) return
         e.preventDefault()
-        if (orbiting) orbiting = false
+        if (orbiting) setOrbiting(false)
         else enterOrbit()
       }
     }
@@ -1232,7 +1238,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         const baseTiltZ = CURRENT_TILT_Z * book.select
 
         if (isCurrent && orbiting && introDone) {
-          // 长按左键轨道球：原始鼠标位置直接驱动三轴旋转（即时跟随），可看书的各个面
+          // 轨道球态：原始鼠标位置直接驱动三轴旋转（即时跟随），可看书的各个面
           // targetMouse.x∈[-1,1] → rotation.y ±π（封面/书脊/背面），targetMouse.y → rotation.x ±0.8（上下）
           book.group.rotation.x = targetMouse.y * 0.8
           book.group.rotation.y = targetMouse.x * Math.PI
