@@ -115,3 +115,18 @@ export function orbitAlignTarget(
 export function isClickMove(clientX: number, dragStartX: number): boolean {
   return Math.abs(clientX - dragStartX) <= CLICK_MOVE_PX
 }
+
+// 光标决策：只负责 CSS 做不到的一个形态——中心抽出本 hover → pointer(3D 命中在 JS)。
+// 返回 'pointer' 时调用方写 inline style;返回 '' 时调用方清空 inline,光标让位给 CSS
+// (.book-shelf-3d 默认 grab / :active 拖动 grabbing / .orbiting 轨道球 grabbing,主分支版本)。
+// 优先级:orbiting 与 dragging 都返回 '' 让位 CSS;hover 中心本仅在静止悬停时给 pointer。
+// hover 闸门(introDone/pointerInside/!snapping/vel===0)由调用方保证——
+// currentHovered 为 true 时这些已成立;吸附/演出中不显示 pointer,与「点击忽略原则」一致。
+export function cursorForState(state: {
+  orbiting: boolean
+  dragging: boolean
+  currentHovered: boolean
+}): 'pointer' | '' {
+  if (state.orbiting || state.dragging) return ''
+  return state.currentHovered ? 'pointer' : ''
+}

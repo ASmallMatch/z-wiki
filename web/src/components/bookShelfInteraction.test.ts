@@ -9,6 +9,7 @@ import {
   isClickMove,
   computeShelfSlots,
   computeRealSlots,
+  cursorForState,
   CLICK_MOVE_PX,
 } from './bookShelfInteraction.js'
 
@@ -205,4 +206,33 @@ test('computeRealSlots N=17 slots=17 -> [-8..8] 全真（17 项）', () => {
   assert.equal(r.length, 17)
   assert.equal(r[0], -8)
   assert.equal(r[16], 8)
+})
+
+// ---------- cursorForState ----------
+
+test('cursorForState 默认（全 false）-> ""（清空 inline,让位 CSS 默认 grab）', () => {
+  assert.equal(cursorForState({ orbiting: false, dragging: false, currentHovered: false }), '')
+})
+
+test('cursorForState hover 中心抽出本 -> pointer（独占「能打开」信号,CSS 做不到 3D 命中）', () => {
+  assert.equal(
+    cursorForState({ orbiting: false, dragging: false, currentHovered: true }),
+    'pointer',
+  )
+})
+
+test('cursorForState 拖拽中 -> ""（让位 CSS :active grabbing）', () => {
+  assert.equal(cursorForState({ orbiting: false, dragging: true, currentHovered: false }), '')
+})
+
+test('cursorForState 拖拽中压过 hover（从中心本上起拖即让位 :active）', () => {
+  assert.equal(cursorForState({ orbiting: false, dragging: true, currentHovered: true }), '')
+})
+
+test('cursorForState 轨道球 -> ""（让位 CSS .orbiting grabbing,主分支版本）', () => {
+  assert.equal(cursorForState({ orbiting: true, dragging: false, currentHovered: false }), '')
+})
+
+test('cursorForState 轨道球压过 hover 残留（进出轨道球 inline 必清空,CSS class 才生效）', () => {
+  assert.equal(cursorForState({ orbiting: true, dragging: false, currentHovered: true }), '')
 })

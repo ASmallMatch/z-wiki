@@ -9,6 +9,7 @@ import {
   clampRot,
   computeRealSlots,
   computeShelfSlots,
+  cursorForState,
   flyToTarget,
   isClickMove,
   orbitAlignTarget,
@@ -732,6 +733,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
     let snapping = false
     let hoverLostFrames = 0
     let isCurrentHovered = false
+    let lastCursor = '' // 光标缓存：只在决策变化时写 inline style，避免每帧触 DOM
     let introDone = false
     // 拖拽惯性：左键 1:1 抓取驱动 rot，松手后指数摩擦衰减，末端 snap 到最近槽
     let dragging = false
@@ -1198,6 +1200,17 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
         hoverLostFrames = HOVER_LOST_THRESHOLD
       }
       isCurrentHovered = currentHovered
+
+      // 光标:JS 只补 CSS 做不到的一个形态——中心抽出本 hover 时 inline 写 pointer。
+      // 决策为 '' 时清空 inline,光标让位 CSS(默认 grab / :active 拖动 grabbing /
+      // .orbiting 轨道球 grabbing,见 home.css)。inline 优先级高于 class,故进出
+      // 轨道球/起拖时必须清空 inline,主分支的 CSS 版本才生效。
+      const cursor = cursorForState({ orbiting, dragging, currentHovered: isCurrentHovered })
+      // function 声明提升致 TS 丢失 useEffect 入口 container guard 的 narrowing（同 mouseToNDC 的 if (!container)），运行期不可达
+      if (cursor !== lastCursor && container) {
+        lastCursor = cursor
+        container.style.cursor = cursor
+      }
 
       // 每本书的姿态：滑到中心(currentSlot)的书做抽出动作，其余待机；入场由进度变量驱动
       // 刚性期（拖拽/惯性/吸附/点击演出）：position 与 rotation 直设，避免 lerp 追不上快拖

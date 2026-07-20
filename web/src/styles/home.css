@@ -633,7 +633,7 @@
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
-  cursor: grab;
+  cursor: grab; /* 默认/拖动(:active)/轨道球(.orbiting)光标全在本文件;JS 只补一个 CSS 做不到的:中心抽出本 hover 的 pointer(inline) */
   overflow: hidden;
   background: var(--surface-shelf); /* 书架画布区最深，与书封面同色 */
   touch-action: pan-y; /* 触屏：横滑拖转盘选书，竖滑滚页面，浏览器原生方向锁分流 */
