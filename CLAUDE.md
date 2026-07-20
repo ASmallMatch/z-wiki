@@ -68,6 +68,26 @@ make build        # 构建前端 + 后端产物
 
 `biome.json` 的 `files.includes` 已排除 `!**/.claude/worktrees`,避免 worktree 嵌套 `biome.json` 阻塞 `make lint`/`make format`。
 
+## 开发工作流
+
+PR 合并 + worktree 隔离,支持并行开发:
+
+```bash
+# 1. 启动 worktree(自动切分支)
+EnterWorktree(name="fix/<slug>")
+
+# 2. 开发、提交、推送
+git push -u origin HEAD
+
+# 3. GitHub 创建 PR, 打 label(feat/fix/chore/refactor/style/docs/test)
+# 4. 合并到 main(Squash and merge)
+# 5. 退出 worktree
+ExitWorktree(action="remove")
+
+# 6. 发版
+gh release create v0.x.x --generate-notes
+```
+
 ## Agent skills
 
 ### Issue tracker

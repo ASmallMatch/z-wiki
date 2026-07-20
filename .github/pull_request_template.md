@@ -14,6 +14,20 @@
 - [ ] test: 测试
 - [ ] docs: 文档
 
+## Worktree 工作流
+
+```bash
+# 1. 在主仓库根目录起 worktree
+EnterWorktree(name="fix/<slug>")
+
+# 2. 在 worktree 里开发、提交、推送
+git push -u origin HEAD
+
+# 3. GitHub 创建 PR, 打 label
+# 4. 合并后退出 worktree
+ExitWorktree(action="remove")
+```
+
 ## 检查清单
 
 - [ ] `make typecheck` 通过
