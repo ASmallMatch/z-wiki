@@ -168,6 +168,16 @@
   border-color: var(--accent-border);
   box-shadow: 0 0 0 2px var(--accent-bg);
 }
+/* number input 去掉右侧步进箭头(上下文窗口手输大数,不需要步进器) */
+.settings-input[type="number"]::-webkit-outer-spin-button,
+.settings-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.settings-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 
 .settings-btn {
   padding: 0.5rem var(--sp-4);
