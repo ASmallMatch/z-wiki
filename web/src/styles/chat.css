@@ -797,6 +797,22 @@
     border-color 0.15s,
     transform 0.15s;
 }
+
+/* 呼吸渐变边框层:所有按钮共享,动画从首屏同时开始,开态仅切 opacity。
+   inset:-1px 让本层边框恰与原边框位置重叠。 */
+.chat-quick::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid var(--accent-border);
+  animation: a2a-breath 6s ease-in-out infinite;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  z-index: -1;
+}
+
 .chat-quick:hover:not(:disabled) {
   color: var(--accent-bright);
   border-color: var(--accent-border);
