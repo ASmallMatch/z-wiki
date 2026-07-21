@@ -1182,7 +1182,7 @@ export default function BookShelf3D({ pages, onBookClick, onIntroDone, theme }: 
       }
       vel = 0
       const effStep = ANGLE_STEP * (1 + SPREAD_MAX * spreadP.val)
-      rot.val = orbitAlignTarget(rot.val, effStep, realMin, realMax)
+      rot.val = orbitAlignTarget(rot.val, effStep, realMin, realMax, virtual)
       setOrbiting(true)
     }
 
