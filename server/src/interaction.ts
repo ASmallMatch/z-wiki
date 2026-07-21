@@ -238,9 +238,9 @@ export async function createInteraction(
       await session.prompt(prompt)
       log.info('ingest finished')
 
-      // 通知对话客户端:ingest 完成 + 触发 build
-      broadcast({ type: 'ingest_done', raw: rawName })
+      // 通知对话客户端:先触发 build 再广播 ingest_done,与 POST /api/ingest 路径一致
       await triggerBuild(null)
+      broadcast({ type: 'ingest_done', raw: rawName })
     } finally {
       activeIngestCount = Math.max(0, activeIngestCount - 1)
       ingestSessions.delete(session)

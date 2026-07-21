@@ -57,8 +57,8 @@ export default function A2AModal({ open, onClose, a2aEnabled, onToggle }: A2AMod
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(renderedText)
-    } catch {
-      // 静默失败
+    } catch (err) {
+      console.warn('复制全文失败', err)
     }
   }, [renderedText])
 

@@ -1,4 +1,4 @@
-# ADR-0022: A2A 收件 — Agent-to-Agent 内容投递
+# ADR-0023: A2A 收件 — Agent-to-Agent 内容投递
 
 - 状态:accepted
 - 日期:2026-07-21
