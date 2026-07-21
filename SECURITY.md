@@ -5,7 +5,7 @@
 如果发现安全漏洞，**不要**在 GitHub Issues 公开提。请通过以下方式直接联系：
 
 - 在 GitHub 上创建 Security Advisory：
-  https://github.com/ASmallMatch/z-wiki/security/advisories/new
+  https://github.com/ember-hearted/z-wiki/security/advisories/new
 
 我们会尽快确认并修复。
 
