@@ -129,6 +129,16 @@ test('orbitAlignTarget N=2 -> 不对齐虚拟 -1（对齐 slot0）', () => {
   assert.equal(orbitAlignTarget(-0.05, EFF_STEP, 0, 1), -0.05)
 })
 
+test('orbitAlignTarget virtual -> 不 clamp，与 snapTarget 行为一致', () => {
+  // virtual=true: raw slot=2, 2 在 [-8,8] 范围内 → 不变
+  assert.equal(orbitAlignTarget(-0.12, EFF_STEP, -HALF, HALF, true), -0.1)
+  // virtual=true: N=2 realSlots=[0,1]，raw slot=-1 超出 → 不 clamp 到 0
+  // 这是 reflow 后真实场景：rot.val 对应对侧换皮槽，切入轨道球不应跳回
+  assert.equal(orbitAlignTarget(0.05, EFF_STEP, 0, 1, true), 0.05)
+  // virtual=false（默认）：同输入,clamp 到 realMin=0 → slot 0 → 返回 0
+  assert.equal(orbitAlignTarget(0.05, EFF_STEP, 0, 1, false), 0)
+})
+
 // ---------- isClickMove ----------
 
 test('isClickMove |dx|<阈值 -> true（点击）', () => {

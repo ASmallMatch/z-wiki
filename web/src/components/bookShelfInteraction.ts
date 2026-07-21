@@ -100,14 +100,17 @@ export function flyToTarget(
 }
 
 // 进入轨道球：对齐 rot 到最近真书槽（稳定 currentSlot）。
-// D4（ADR-0015）：clamp 到 realSlots [realMin, realMax]，不落虚拟。
+// virtual=true 时不 clamp rawSlot，与 snapTarget 行为一致，防止 reflow 后 rot 回跳（#21）。
+// virtual=false 时 clamp 到 realSlots [realMin, realMax]，不落虚拟（ADR-0015 D4）。
 export function orbitAlignTarget(
   rotVal: number,
   effStep: number,
   realMin: number,
   realMax: number,
+  virtual: boolean = false,
 ): number {
-  const slot = Math.max(realMin, Math.min(realMax, Math.round(-rotVal / effStep)))
+  const raw = Math.round(-rotVal / effStep)
+  const slot = virtual ? raw : Math.max(realMin, Math.min(realMax, raw))
   return slot === 0 ? 0 : -slot * effStep
 }
 
