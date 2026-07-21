@@ -48,3 +48,41 @@ clean: ## 清理构建产物与依赖
 
 clean-release: ## 清理 release/:删其他平台完整包,保留当前 arch + app/code 包 + unpacked 缓存(ADR-0018 D7)
 	npx tsx scripts/clean-release.ts
+
+release: ## 发布新版本:打包(三平台)+ tag + GitHub release + 上传产物
+	$(eval V := $(shell node -p "require('./package.json').version"))
+	$(eval TAG := v$(V))
+	@set -eu; \
+	SUMMARY="$(SUMMARY)"; \
+	if [ -z "$$SUMMARY" ]; then \
+	  echo "用法: make release SUMMARY=\"A2A 收件 + 轨道球修复\""; \
+	  exit 1; \
+	fi; \
+	\
+	echo "=== 检查 git 状态 ==="; \
+	if [ -n "$$(git status --porcelain)" ]; then echo "有未提交改动"; exit 1; fi; \
+	CUR_BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ "$$CUR_BRANCH" != "main" ]; then echo "不在 main 分支(当前: $$CUR_BRANCH)"; exit 1; fi; \
+	if git rev-parse "$(TAG)" >/dev/null 2>&1; then echo "tag $(TAG) 已存在"; exit 1; fi; \
+	echo "→ 发布 $(TAG) - $$SUMMARY"; \
+	\
+	echo ""; echo "=== 三平台打包 ==="; \
+	$(MAKE) package TARGETS="--mac --win --linux"; \
+	\
+	echo ""; echo "=== 创建 tag ==="; \
+	git tag "$(TAG)"; \
+	git push origin "$(TAG)"; \
+	\
+	echo ""; echo "=== 发布到 GitHub ==="; \
+	gh release create "$(TAG)" \
+	  --title "$(TAG) - $$SUMMARY" \
+	  --generate-notes \
+	  release/z-wiki-*-$(V)-mac-arm64.dmg \
+	  release/z-wiki-*-$(V)-mac-x64.dmg \
+	  release/z-wiki-*-$(V)-win-x64.exe \
+	  release/z-wiki-*-$(V)-win-x64.zip \
+	  release/z-wiki-*-$(V)-linux-x64.AppImage \
+	  release/z-wiki-code-$(V).tar.gz \
+	  release/z-wiki-app-$(V).tar.gz \
+	  release/latest.json; \
+	echo ""; echo "✓ $(TAG) 发布完成"
