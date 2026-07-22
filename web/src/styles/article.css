@@ -400,10 +400,27 @@
   border-radius: var(--r-md);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
   font-size: var(--fs-sm);
   line-height: 1.7;
   box-shadow: var(--shadow-sm);
   position: relative;
+}
+
+/* 代码块横向滚动条：细条 + 描边色轨道，与 TOC 侧栏细滚动条统一 */
+.prose pre::-webkit-scrollbar {
+  height: 6px;
+}
+.prose pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+.prose pre::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--r-pill);
+}
+.prose pre::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-border);
 }
 
 .prose pre code {
