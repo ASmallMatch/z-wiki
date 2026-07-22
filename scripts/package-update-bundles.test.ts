@@ -12,8 +12,8 @@ import {
   collectAppBundleEntries,
   collectCodePatchEntries,
   collectFullPackages,
-  computeVersions,
 } from './package-update-bundles.js'
+import { computeVersions } from './lib/release-versions.js'
 
 test('computeVersions: depsVersion = lockHash 前 12 位, baselineVersion 拼接', () => {
   const v = computeVersions({
