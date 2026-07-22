@@ -63,12 +63,12 @@
   ); /* hero 标题渐变文字(docs .hero h1);Draft 覆盖为墨水渐变 */
 
   /* 代码高亮：降低饱和度，与靛青 accent 协调 */
-  --code-kw: #c49ee6;
-  --code-str: #9dd6a8;
-  --code-num: #e8c080;
-  --code-fn: #95bcef;
+  --code-kw: #d8b4fe;
+  --code-str: #86efac;
+  --code-num: #fdba74;
+  --code-fn: #93c5fd;
   --code-cmt: #7a7790;
-  --code-op: #b8a0d8;
+  --code-op: #c4b5fd;
 
   --sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", "PingFang SC",
@@ -178,12 +178,12 @@
   --glow-button: var(--shadow-md);
   --glow-button-hover: 0 0 0 1px var(--accent-border), var(--shadow-md);
   /* 代码高亮：净纸底下重排色相（紫/绿/琥珀/蓝/灰/青），明度饱和拉开不再糊(ADR-0022 D4) */
-  --code-kw: #6d28d9;
-  --code-str: #1a7f37;
-  --code-num: #b45309;
-  --code-fn: #1d4ed8;
+  --code-kw: #7c3aed;
+  --code-str: #16a34a;
+  --code-num: #d97706;
+  --code-fn: #2563eb;
   --code-cmt: #6b7280;
-  --code-op: #0e7490;
+  --code-op: #0891b2;
   /* header 警戒带次色：墨蓝（与 accent 同源） */
   --header-stripe: rgba(43, 108, 176, 0.45);
   /* 标题字体：Draft 下换衬线沿用(ADR-0013 D5'') */

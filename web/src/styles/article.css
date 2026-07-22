@@ -455,44 +455,115 @@
   border: 1px solid var(--border-light);
 }
 
-/* ── Code Highlighting ────────────────────────────────────────── */
+/* ── 代码高亮 ─────────────────────────────────────────────────── */
 
+/* 关键字、字面量 */
 .prose .hljs-keyword,
-.prose .hljs-literal {
+.prose .hljs-literal,
+.prose .hljs-template-tag {
   color: var(--code-kw);
+  font-weight: 650;
 }
+/* 字符串、文档标签、正则、符号 */
 .prose .hljs-string,
-.prose .hljs-doctag {
+.prose .hljs-doctag,
+.prose .hljs-regexp,
+.prose .hljs-symbol,
+.prose .hljs-bullet,
+.prose .hljs-addition {
   color: var(--code-str);
 }
-.prose .hljs-number {
+/* 数字、公式 */
+.prose .hljs-number,
+.prose .hljs-formula {
   color: var(--code-num);
 }
+/* 函数名、类名、节标题、链接 */
 .prose .hljs-title,
 .prose .hljs-title.class_,
-.prose .hljs-title.function_ {
+.prose .hljs-title.function_,
+.prose .hljs-title.class_.inherited_,
+.prose .hljs-title.function_.invoke_ {
   color: var(--code-fn);
-}
-.prose .hljs-comment,
-.prose .hljs-quote {
-  color: var(--code-cmt);
-  font-style: italic;
-}
-.prose .hljs-built_in,
-.prose .hljs-type {
-  color: var(--code-op);
-}
-.prose .hljs-attr,
-.prose .hljs-attribute {
-  color: var(--code-kw);
 }
 .prose .hljs-section {
   color: var(--code-fn);
   font-weight: 700;
 }
-.prose .hljs-addition {
-  color: var(--code-str);
+.prose .hljs-link {
+  color: var(--code-fn);
+  text-decoration: underline;
 }
+/* 注释 */
+.prose .hljs-comment,
+.prose .hljs-quote {
+  color: var(--code-cmt);
+  font-style: italic;
+}
+/* 内建对象、类型、操作符、标签 */
+.prose .hljs-built_in,
+.prose .hljs-type,
+.prose .hljs-operator,
+.prose .hljs-tag {
+  color: var(--code-op);
+}
+/* CSS/HTML 选择器 */
+.prose .hljs-selector-tag,
+.prose .hljs-selector-id,
+.prose .hljs-selector-class,
+.prose .hljs-selector-attr,
+.prose .hljs-selector-pseudo {
+  color: var(--code-op);
+}
+/* 属性 */
+.prose .hljs-attr,
+.prose .hljs-attribute,
+.prose .hljs-property {
+  color: var(--code-kw);
+}
+/* 变量 */
+.prose .hljs-variable {
+  color: var(--text);
+}
+.prose .hljs-variable.language,
+.prose .hljs-variable.constant {
+  color: var(--code-kw);
+}
+/* 参数、元信息（次强调） */
+.prose .hljs-params,
+.prose .hljs-meta {
+  color: var(--text-muted);
+}
+/* 替换、标点（柔和） */
+.prose .hljs-subst,
+.prose .hljs-punctuation {
+  color: var(--text-muted);
+}
+/* 强调 */
+.prose .hljs-emphasis {
+  font-style: italic;
+}
+.prose .hljs-strong {
+  font-weight: 700;
+}
+/* 模板变量 */
+.prose .hljs-template-variable {
+  color: var(--code-fn);
+}
+/* HTML/XML 标签名 */
+.prose .hljs-name {
+  color: var(--code-fn);
+}
+/* Markdown 行内代码 */
+.prose .hljs-code {
+  font-family: var(--mono);
+}
+/* 元关键字/串 */
+.prose .hljs-meta.keyword,
+.prose .hljs-meta.string {
+  color: var(--code-kw);
+}
+/* 删除 */
 .prose .hljs-deletion {
   color: var(--code-kw);
 }

@@ -5,7 +5,7 @@ const SERVER_PORT = Number(process.env.PORT ?? 3000)
 
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   build: {
     rollupOptions: {
       // three 与 gsap 体积大且独立，拆成各自 vendor chunk 便于长缓存

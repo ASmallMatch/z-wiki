@@ -2,11 +2,31 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import hljs from 'highlight.js/lib/core'
 import typescript from 'highlight.js/lib/languages/typescript'
+import javascript from 'highlight.js/lib/languages/javascript'
 import bash from 'highlight.js/lib/languages/bash'
 import python from 'highlight.js/lib/languages/python'
+import json from 'highlight.js/lib/languages/json'
+import css from 'highlight.js/lib/languages/css'
+import xml from 'highlight.js/lib/languages/xml'
+import markdown from 'highlight.js/lib/languages/markdown'
+import go from 'highlight.js/lib/languages/go'
+import yaml from 'highlight.js/lib/languages/yaml'
+import sql from 'highlight.js/lib/languages/sql'
+import shell from 'highlight.js/lib/languages/shell'
+import diff from 'highlight.js/lib/languages/diff'
 hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('bash', bash)
 hljs.registerLanguage('python', python)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('css', css)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('markdown', markdown)
+hljs.registerLanguage('go', go)
+hljs.registerLanguage('yaml', yaml)
+hljs.registerLanguage('sql', sql)
+hljs.registerLanguage('shell', shell)
+hljs.registerLanguage('diff', diff)
 import { usePageContent } from '../hooks/useData'
 import type { PageMeta, TocItem } from '../hooks/useData'
 
@@ -98,13 +118,14 @@ export default function Article({ pages }: ArticleProps) {
 
   // Syntax highlighting
   useEffect(() => {
-    if (!content) return
-    const container = document.querySelector('.article-main')
-    if (!container) return
-    container.querySelectorAll('pre code[class*="language-"]').forEach((block) => {
-      hljs.highlightElement(block as HTMLElement)
+    const main = document.querySelector('.article-main')
+    if (!main) return
+    main.querySelectorAll('pre code[class*="language-"]').forEach((block) => {
+      const el = block as HTMLElement
+      if (el.dataset.highlighted) return
+      hljs.highlightElement(el)
     })
-  }, [content])
+  })
 
   // Scroll to hash on mount
   useEffect(() => {
