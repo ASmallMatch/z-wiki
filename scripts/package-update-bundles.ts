@@ -8,6 +8,13 @@ import { execSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { Versions } from './lib/release-versions.ts'
+import {
+  computeVersions,
+  readDesktopPkg,
+  readLockHash,
+  readToolVersions,
+} from './lib/release-versions.ts'
 
 /** latest.json 单个包条目(结构对应 desktop/src/updater.ts 的 PackageInfo)。 */
 export interface LatestPackage {
@@ -25,31 +32,6 @@ export interface LatestManifest {
     code?: LatestPackage
     app?: LatestPackage
     full?: Record<string, LatestPackage>
-  }
-}
-
-/** computeVersions 的输入(纯函数,IO 在 main 组装)。 */
-export interface VersionInputs {
-  appVersion: string
-  electronVersion: string
-  rg: string
-  fd: string
-  pandoc: string
-  lockHash: string
-}
-
-export interface Versions {
-  appVersion: string
-  depsVersion: string
-  baselineVersion: string
-}
-
-/** 算三版本号:depsVersion = lockHash 前 12 位,baselineVersion = e{electron}_p{pandoc}_r{rg}_f{fd}。 */
-export function computeVersions(input: VersionInputs): Versions {
-  return {
-    appVersion: input.appVersion,
-    depsVersion: input.lockHash.slice(0, 12),
-    baselineVersion: `e${input.electronVersion}_p${input.pandoc}_r${input.rg}_f${input.fd}`,
   }
 }
 
@@ -129,22 +111,6 @@ function sha512(filePath: string): string {
   return createHash('sha512').update(readFileSync(filePath)).digest('hex')
 }
 
-/** 读 desktop/package.json 的 version + electron 版本。 */
-function readDesktopPkg(repoRoot: string): { version: string; electron: string } {
-  const pkg = JSON.parse(readFileSync(path.join(repoRoot, 'desktop', 'package.json'), 'utf-8'))
-  return { version: pkg.version, electron: pkg.devDependencies?.electron ?? '' }
-}
-
-/** 读工具二进制版本(desktop/resources/bin/<platformArch>/version.json;任一存在的 platformArch)。 */
-function readToolVersions(repoRoot: string): { rg: string; fd: string; pandoc: string } {
-  const binRoot = path.join(repoRoot, 'desktop', 'resources', 'bin')
-  const dir = existsSync(binRoot)
-    ? readdirSync(binRoot).find((d) => existsSync(path.join(binRoot, d, 'version.json')))
-    : undefined
-  if (!dir) throw new Error('未找到工具版本:请先跑 tsx scripts/fetch-tool-bins.ts')
-  return JSON.parse(readFileSync(path.join(binRoot, dir, 'version.json'), 'utf-8'))
-}
-
 /** main:从 unpacked 抽代码包 + 生成 latest.json。make package 末尾调。 */
 function main(): void {
   const repoRoot = path.resolve(import.meta.dirname, '..')
@@ -177,9 +143,7 @@ function main(): void {
 
   const desktop = readDesktopPkg(repoRoot)
   const tools = readToolVersions(repoRoot)
-  const lockHash = createHash('sha256')
-    .update(readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf-8'))
-    .digest('hex')
+  const lockHash = readLockHash(repoRoot)
   const versions = computeVersions({
     appVersion: desktop.version,
     electronVersion: desktop.electron,
