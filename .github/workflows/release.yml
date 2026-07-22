@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      summary:
+        description: 'Release summary'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      tier: ${{ steps.detect.outputs.tier }}
+      version: ${{ steps.detect.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+
+      - id: detect
+        run: |
+          TIER=$(npx tsx scripts/detect-release-tier.ts --tier-only 2>/dev/null || echo "full")
+          V=$(node -p "require('./package.json').version")
+          echo "tier=$TIER" >> $GITHUB_OUTPUT
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "Detected tier: $TIER for v$V"
+
+  # 全量发版:三平台各独立打包
+  build-full-mac:
+    needs: [detect]
+    if: needs.detect.outputs.tier == 'full'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run build -w @z-wiki/desktop
+      - run: node desktop/scripts/render-icon.mjs
+      - run: cd desktop && npx electron-builder --mac --win
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-mac
+          path: release/*
+          if-no-files-found: error
+
+  build-full-linux:
+    needs: [detect]
+    if: needs.detect.outputs.tier == 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run build -w @z-wiki/desktop
+      - run: node desktop/scripts/render-icon.mjs
+      - run: cd desktop && npx electron-builder --linux
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-linux
+          path: release/*
+          if-no-files-found: error
+
+  # 增量发版(非 full):只需一个 linux 平台出 unpacked 用于抽 code/app 包
+  build-incremental:
+    needs: [detect]
+    if: needs.detect.outputs.tier != 'full'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: npm run build -w @z-wiki/desktop
+      - run: node desktop/scripts/render-icon.mjs
+      - run: cd desktop && npx electron-builder --linux
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # 抽代码包 + app 包 + latest.json
+      - run: npx tsx scripts/package-update-bundles.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: incremental
+          path: |
+            release/z-wiki-code-*.tar.gz
+            release/z-wiki-app-*.tar.gz
+            release/latest.json
+          if-no-files-found: error
+
+  # 汇总发版
+  release:
+    needs: [detect, build-full-mac, build-full-linux, build-incremental]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # 如果 detect 失败或条件都不满足则跳过
+      - run: |
+          echo "tier=${{ needs.detect.outputs.tier }}"
+          echo "version=${{ needs.detect.outputs.version }}"
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: '*'
+          path: release-artifacts
+      - name: List artifacts
+        run: ls -la release-artifacts/*/ || echo "(no artifacts)"
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.detect.outputs.version }}
+          name: v${{ needs.detect.outputs.version }}${{ inputs.summary && format(' - {0}', inputs.summary) || '' }}
+          body: ${{ inputs.summary && format('{0}', inputs.summary) || '' }}
+          generate_release_notes: true
+          files: |
+            release-artifacts/**/*
+          fail_on_unmatched_files: false
