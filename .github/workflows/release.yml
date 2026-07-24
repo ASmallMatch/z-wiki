@@ -143,6 +143,12 @@ jobs:
           path: release-artifacts
       - name: List artifacts
         run: ls -la release-artifacts/*/ || echo "(no artifacts)"
+      # 全空则失败(防空 release);单条 pattern 无匹配不算错(full 无 tar.gz,增量无 dmg)
+      - name: Verify artifacts
+        run: |
+          count=$(find release-artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.tar.gz' \) | wc -l)
+          echo "可发布产物: $count 个"
+          [ "$count" -gt 0 ]
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -160,4 +166,4 @@ jobs:
             release-artifacts/**/*.tar.gz
             release-artifacts/**/latest*.yml
             release-artifacts/**/latest.json
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
